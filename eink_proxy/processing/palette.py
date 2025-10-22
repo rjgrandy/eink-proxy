@@ -18,7 +18,23 @@ def palette_image() -> Image.Image:
 PAL_IMG = palette_image()
 
 
+def _is_neutral(rgb: Tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    max_channel = max(r, g, b)
+    min_channel = min(r, g, b)
+    return max_channel - min_channel <= max(12, int(0.1 * max_channel))
+
+
+def _nearest_bw(rgb: Tuple[int, int, int]) -> int:
+    black_distance = rgb[0] ** 2 + rgb[1] ** 2 + rgb[2] ** 2
+    white_distance = (255 - rgb[0]) ** 2 + (255 - rgb[1]) ** 2 + (255 - rgb[2]) ** 2
+    return 0 if black_distance < white_distance else 1
+
+
 def nearest_palette_index(rgb: Tuple[int, int, int]) -> int:
+    if _is_neutral(rgb):
+        return _nearest_bw(rgb)
+
     best_index = 0
     best_distance = float("inf")
     r, g, b = rgb
@@ -31,16 +47,10 @@ def nearest_palette_index(rgb: Tuple[int, int, int]) -> int:
 
 
 def nearest_two_palette(rgb: Tuple[int, int, int]) -> Tuple[int, int]:
-    r, g, b = rgb
-
-    # Neutral colors (very low saturation) look incorrect when they are dithered with
-    # saturated inks such as orange. Prefer mixing black and white instead to produce a
-    # visually neutral halftone.
-    max_channel = max(r, g, b)
-    min_channel = min(r, g, b)
-    if max_channel - min_channel <= max(12, int(0.1 * max_channel)):
+    if _is_neutral(rgb):
         return 0, 1  # black and white
 
+    r, g, b = rgb
     best = [(float("inf"), -1), (float("inf"), -1)]
     for index, (R, G, B) in enumerate(EINK_PALETTE):
         distance = (R - r) ** 2 + (G - g) ** 2 + (B - b) ** 2
