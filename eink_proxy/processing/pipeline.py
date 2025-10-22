@@ -6,7 +6,7 @@ from .dither import ordered_bw_halftone, ordered_two_color, stucki_error_diffusi
 from .enhance import enhance_photo, enhance_ui
 from .masking import build_masks
 from .palette import PAL_IMG
-from .config import SETTINGS
+from ..config import SETTINGS
 
 
 def quantize_palette_fs(img: Image.Image) -> Image.Image:

@@ -4,7 +4,7 @@ from typing import Tuple
 
 from PIL import Image
 
-from .config import EINK_PALETTE
+from ..config import EINK_PALETTE
 
 
 def palette_image() -> Image.Image:

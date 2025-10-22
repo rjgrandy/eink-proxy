@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PIL import Image, ImageEnhance, ImageFilter
 
-from .config import SETTINGS
+from ..config import SETTINGS
 
 
 def apply_gamma(img: Image.Image, gamma: float) -> Image.Image:

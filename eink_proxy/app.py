@@ -4,12 +4,17 @@ import io
 
 from flask import Flask, jsonify, request, send_file
 
-from .cache import last_good_png
 from .config import SETTINGS, configure_logging
-from .network import FETCHER
-from .pipeline import build_debug_overlay, composite_regional, quantize_palette_fs, quantize_palette_none
-from .enhance import enhance_photo, enhance_ui
-from .responses import send_png
+from .infrastructure.cache import last_good_png
+from .infrastructure.network import FETCHER
+from .infrastructure.responses import send_png
+from .processing.enhance import enhance_photo, enhance_ui
+from .processing.pipeline import (
+    build_debug_overlay,
+    composite_regional,
+    quantize_palette_fs,
+    quantize_palette_none,
+)
 
 
 def create_app() -> Flask:
