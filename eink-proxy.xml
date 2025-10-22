@@ -1,16 +1,16 @@
 <?xml version="1.0"?>
 <Container version="2">
     <Name>eink-proxy</Name>
-    <Repository>ghcr.io/your-user/eink-proxy:latest</Repository>
+    <Repository>ghcr.io/rjgrandy/eink-proxy:latest</Repository>
     <Registry>https://ghcr.io/</Registry>
     <Network>bridge</Network>
     <Shell>bash</Shell>
     <Privileged>false</Privileged>
-    <Support>https://github.com/your-user/eink-proxy/issues</Support>
-    <Project>https://github.com/your-user/eink-proxy</Project>
+    <Support>https://github.com/rjgrandy/eink-proxy/issues</Support>
+    <Project>https://github.com/rjgrandy/eink-proxy</Project>
     <Overview>This container proxies an upstream dashboard image and remaps it to the seven-colour Waveshare E-ink palette. Set SOURCE_URL to the HTTP endpoint that returns the dashboard snapshot you would like to display.</Overview>
     <Category>HomeAutomation:Tools</Category>
-    <WebUI>http://[IP]:[PORT:5000]/</WebUI>
+    <WebUI>http://[IP]:[PORT:5500]/</WebUI>
     <TemplateURL>https://raw.githubusercontent.com/your-user/eink-proxy/main/unraid/docker-template.xml</TemplateURL>
     <Icon></Icon>
     <ExtraParams></ExtraParams>
