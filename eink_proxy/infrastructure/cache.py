@@ -24,7 +24,7 @@ class ResponseCache:
         return data
 
     def put(self, key: str, data: bytes) -> None:
-        if len(self._entries) > 16:
+        if len(self._entries) >= 16:
             oldest = min(self._entries.items(), key=lambda item: item[1][0])[0]
             self._entries.pop(oldest, None)
         self._entries[key] = (time.time(), data)
