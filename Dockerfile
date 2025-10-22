@@ -1,20 +1,36 @@
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1
 
-# Set working directory
+ARG PYTHON_VERSION=3.12-slim
+
+FROM python:${PYTHON_VERSION} as runtime
+
+# Required by Pillow and the runtime healthcheck
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libjpeg62-turbo \
+        libpng16-16 \
+        zlib1g \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=5000 \
+    SOURCE_URL="http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480" \
+    WORKERS=2 \
+    THREADS=2
+
 WORKDIR /app
 
-# Install dependencies
-RUN pip install --no-cache-dir flask Pillow requests gunicorn
+COPY eink_proxy.py /app/eink_proxy.py
 
-# Copy application file
-COPY eink_proxy.py .
+RUN pip install --no-cache-dir pillow flask requests gunicorn
 
-# Expose port
 EXPOSE 5000
 
-# Environment variables for configuration
-ENV SOURCE_URL="http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480"
-ENV PORT=5000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS "http://127.0.0.1:${PORT}/health" || exit 1
 
-# Run with gunicorn for production
-CMD gunicorn --bind 0.0.0.0:${PORT} --workers 2 --timeout 120 eink_proxy:app
+ENV APP_IMPORT_PATH=eink_proxy:app
+
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --threads ${THREADS} ${APP_IMPORT_PATH}"]
