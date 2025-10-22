@@ -4,7 +4,7 @@ from typing import Tuple
 
 from PIL import Image, ImageChops, ImageFilter, ImageOps
 
-from .config import SETTINGS
+from ..config import SETTINGS
 
 
 def threshold_channel(channel: Image.Image, threshold: int, invert: bool = False) -> Image.Image:

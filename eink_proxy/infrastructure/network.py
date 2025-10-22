@@ -7,7 +7,7 @@ from typing import Callable
 import requests
 from PIL import Image
 
-from .config import SETTINGS
+from ..config import SETTINGS
 
 
 SessionFactory = Callable[[], requests.Session]
