@@ -2,7 +2,8 @@ version: '3.8'
 
 services:
   eink-proxy:
-    build: .
+    build:
+      context: .
     container_name: eink-image-proxy
     ports:
       - "5000:5000"

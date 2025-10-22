@@ -1,2 +1,61 @@
 # eink-proxy
-App which converts a dashboard image into an image which is more compatible with the 7 color E1002 eink display. 
+
+A tiny Flask application that proxies an existing dashboard or snapshot feed and remaps
+it into the seven-colour palette supported by Waveshare-style E-ink panels. The container
+is designed to run as a sidecar to Home Assistant or any other service that can provide a
+static PNG/JPEG snapshot.
+
+## Features
+
+- Hybrid dithering pipeline tuned for dashboards that mix crisp UI regions with photos.
+- Additional endpoints such as `/raw` and `/debug/masks` for troubleshooting.
+- Runtime tunables through environment variables (`PHOTO_MODE`, `SKY_GRAD_THR`, etc.).
+- Health-checked Docker image built on Python 3.12-slim with Gunicorn.
+
+## Building the image
+
+```bash
+docker build -t eink-proxy .
+```
+
+## Using docker-compose
+
+```bash
+docker compose up -d --build
+```
+
+The service will be available on `http://localhost:5000` unless you change the
+`PORT` environment variable.
+
+## Runtime configuration
+
+Common environment variables:
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `SOURCE_URL` | URL of the dashboard/snapshot image to proxy. | `http://192.168.1.199:10000/.../einkpanelcolor?viewport=800x480` |
+| `PORT` | Container port exposed by Gunicorn. | `5000` |
+
+The sample compose file points at ``http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480``; update this to match your dashboard.
+
+Additional environment variables:
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `PHOTO_MODE` | Photo processing mode (`hybrid`, `fs`, `stucki`, `ordered`). | `hybrid` |
+| `SKY_GRAD_THR` | Gradient threshold that controls where photo smoothing applies. | `14` |
+| `SMOOTH_STRENGTH` | Strength of edge-aware smoothing in flat areas. | `1` |
+| `CACHE_TTL` | Seconds to cache the most recent rendered PNG. | `5` |
+| `SOURCE_TIMEOUT` | Seconds to wait for the source request. | `10.0` |
+| `SOURCE_RETRIES` | Number of retries when contacting the source. | `2` |
+
+See the top of `eink_proxy.py` for the full list of tunables.
+
+## Endpoints
+
+- `/eink-image?dither=regional` – Recommended for mixed dashboards (default behaviour).
+- `/eink-image?dither=false` – Force no dithering for crisp UI dashboards.
+- `/eink-image?dither=true` – Force full dithering (best for photographs).
+- `/health` – Readiness/liveness information.
+- `/raw` – Returns the upstream image without processing.
+- `/debug/masks` – Visualises the mask used to decide between UI and photo processing paths.
