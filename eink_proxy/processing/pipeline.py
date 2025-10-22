@@ -5,8 +5,8 @@ from PIL import Image, ImageOps
 from .dither import ordered_bw_halftone, ordered_two_color, stucki_error_diffusion
 from .enhance import enhance_photo, enhance_ui
 from .masking import build_masks
-from .palette import PAL_IMG
-from ..config import SETTINGS
+from .palette import PAL_IMG, nearest_palette_index
+from ..config import EINK_PALETTE, SETTINGS
 
 
 def quantize_palette_fs(img: Image.Image) -> Image.Image:
@@ -14,7 +14,15 @@ def quantize_palette_fs(img: Image.Image) -> Image.Image:
 
 
 def quantize_palette_none(img: Image.Image) -> Image.Image:
-    return img.quantize(palette=PAL_IMG, dither=Image.NONE).convert("RGB")
+    src = img.convert("RGB")
+    width, height = src.size
+    out = Image.new("RGB", (width, height))
+    src_pixels = src.load()
+    dst_pixels = out.load()
+    for y in range(height):
+        for x in range(width):
+            dst_pixels[x, y] = EINK_PALETTE[nearest_palette_index(src_pixels[x, y])]
+    return out
 
 
 def composite_regional(src_rgb: Image.Image) -> Image.Image:
