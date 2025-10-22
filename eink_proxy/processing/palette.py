@@ -32,6 +32,15 @@ def nearest_palette_index(rgb: Tuple[int, int, int]) -> int:
 
 def nearest_two_palette(rgb: Tuple[int, int, int]) -> Tuple[int, int]:
     r, g, b = rgb
+
+    # Neutral colors (very low saturation) look incorrect when they are dithered with
+    # saturated inks such as orange. Prefer mixing black and white instead to produce a
+    # visually neutral halftone.
+    max_channel = max(r, g, b)
+    min_channel = min(r, g, b)
+    if max_channel - min_channel <= max(12, int(0.1 * max_channel)):
+        return 0, 1  # black and white
+
     best = [(float("inf"), -1), (float("inf"), -1)]
     for index, (R, G, B) in enumerate(EINK_PALETTE):
         distance = (R - r) ** 2 + (G - g) ** 2 + (B - b) ** 2
