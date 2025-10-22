@@ -27,6 +27,21 @@ docker compose up -d --build
 The service will be available on `http://localhost:5000` unless you change the
 `PORT` environment variable.
 
+## Running on Unraid
+
+1. Copy `unraid/docker-template.xml` to your Unraid server at
+   `/boot/config/plugins/dockerMan/templates-user/`.
+2. Edit the template to point the `<Repository>`, `<Support>`, `<Project>` and
+   `<TemplateURL>` fields at your published image or fork. The default values
+   assume you have pushed an image to GitHub Container Registry under
+   `ghcr.io/your-user/eink-proxy:latest`.
+3. In the Unraid web UI, go to **Docker → Add Container**, choose the custom
+   template you copied, and adjust the `SOURCE_URL` environment variable to the
+   dashboard snapshot you want to proxy. Update any of the advanced tunables if
+   required.
+4. Deploy the container. The application will expose port `5000` by default
+   and provide the rendered E-ink-friendly image at `/eink-image`.
+
 ## Runtime configuration
 
 Common environment variables:
