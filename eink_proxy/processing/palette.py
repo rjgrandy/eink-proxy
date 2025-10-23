@@ -32,6 +32,9 @@ def _nearest_bw(rgb: Tuple[int, int, int]) -> int:
     # remain legible, while still allowing very light grays to stay white.
     luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
     return 0 if luminance <= 200 else 1
+    black_distance = rgb[0] ** 2 + rgb[1] ** 2 + rgb[2] ** 2
+    white_distance = (255 - rgb[0]) ** 2 + (255 - rgb[1]) ** 2 + (255 - rgb[2]) ** 2
+    return 0 if black_distance < white_distance else 1
 
 
 def nearest_palette_index(rgb: Tuple[int, int, int]) -> int:
