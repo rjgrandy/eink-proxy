@@ -26,6 +26,12 @@ def _is_neutral(rgb: Tuple[int, int, int]) -> bool:
 
 
 def _nearest_bw(rgb: Tuple[int, int, int]) -> int:
+    r, g, b = rgb
+    # Choose the ink that keeps neutral UI elements visible. Thin gridlines and
+    # separators are typically drawn as medium grays; map those to black so they
+    # remain legible, while still allowing very light grays to stay white.
+    luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return 0 if luminance <= 200 else 1
     black_distance = rgb[0] ** 2 + rgb[1] ** 2 + rgb[2] ** 2
     white_distance = (255 - rgb[0]) ** 2 + (255 - rgb[1]) ** 2 + (255 - rgb[2]) ** 2
     return 0 if black_distance < white_distance else 1
