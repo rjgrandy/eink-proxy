@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageChops, ImageOps
 
 from .dither import ordered_bw_halftone, ordered_two_color, stucki_error_diffusion
 from .enhance import enhance_photo, enhance_ui
 from .masking import build_masks
-from .palette import PAL_IMG, nearest_palette_index
+from .palette import PAL_IMG, nearest_palette_index, palette_fit_mask
 from ..config import EINK_PALETTE, SETTINGS
 
 
@@ -28,7 +28,9 @@ def quantize_palette_none(img: Image.Image) -> Image.Image:
 def composite_regional(src_rgb: Image.Image) -> Image.Image:
     edge_mask, mid_gray_mask, flat_mask, photo_src = build_masks(src_rgb)
 
-    sharp = quantize_palette_none(enhance_ui(src_rgb))
+    ui_enhanced = enhance_ui(src_rgb)
+    sharp = quantize_palette_none(ui_enhanced)
+    palette_mask = palette_fit_mask(ui_enhanced, sharp)
 
     bw = ordered_bw_halftone(src_rgb)
     halftone = Image.new("RGB", bw.size, (255, 255, 255))
@@ -48,7 +50,8 @@ def composite_regional(src_rgb: Image.Image) -> Image.Image:
 
     mix1 = Image.composite(halftone, sharp, mid_gray_mask)
     non_edge = ImageOps.invert(edge_mask)
-    mix2 = Image.composite(photo, mix1, non_edge)
+    photo_mask = ImageChops.multiply(non_edge, ImageOps.invert(palette_mask))
+    mix2 = Image.composite(photo, mix1, photo_mask)
     return Image.composite(sharp, mix2, edge_mask)
 
 
