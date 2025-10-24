@@ -24,6 +24,7 @@ class ProxySettings:
     sky_gradient_threshold: int
     smooth_strength: int
     log_level: str
+    ui_palette_threshold: int
 
     @classmethod
     def from_env(cls) -> "ProxySettings":
@@ -49,6 +50,7 @@ class ProxySettings:
             sky_gradient_threshold=int(os.getenv("SKY_GRAD_THR", "14")),
             smooth_strength=int(os.getenv("SMOOTH_STRENGTH", "1")),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
+            ui_palette_threshold=int(os.getenv("UI_PALETTE_THR", "1800")),
         )
 
 

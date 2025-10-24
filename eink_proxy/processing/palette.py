@@ -4,7 +4,7 @@ from typing import Tuple
 
 from PIL import Image
 
-from ..config import EINK_PALETTE
+from ..config import EINK_PALETTE, SETTINGS
 
 
 def palette_image() -> Image.Image:
@@ -81,3 +81,32 @@ def mix_ratio(rgb: Tuple[int, int, int], color_a_index: int, color_b_index: int)
         denominator += (xa - xb) ** 2
     alpha = max(0.0, min(1.0, numerator / denominator))
     return alpha
+
+
+def palette_fit_mask(src: Image.Image, quantized: Image.Image, threshold: int | None = None) -> Image.Image:
+    """Return a mask highlighting pixels that closely match their quantized color.
+
+    Pixels whose squared Euclidean distance between the source and quantized
+    colors is below ``threshold`` are marked as 255 in the returned ``L`` mode
+    mask. These regions represent areas where the source already aligns well
+    with the hardware palette and therefore benefit from direct color mapping.
+    """
+
+    distance_threshold = SETTINGS.ui_palette_threshold if threshold is None else threshold
+    src_rgb = src.convert("RGB")
+    quant_rgb = quantized.convert("RGB")
+    width, height = src_rgb.size
+    mask = Image.new("L", src_rgb.size, 0)
+    src_pixels = src_rgb.load()
+    quant_pixels = quant_rgb.load()
+    mask_pixels = mask.load()
+
+    for y in range(height):
+        for x in range(width):
+            r1, g1, b1 = src_pixels[x, y]
+            r2, g2, b2 = quant_pixels[x, y]
+            distance = (r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2
+            if distance <= distance_threshold:
+                mask_pixels[x, y] = 255
+
+    return mask
