@@ -4,7 +4,8 @@
       push:
         branches:
           - main # Trigger on pushes to the main branch
-
+          - dev
+          
     jobs:
       build-and-push-image:
         runs-on: ubuntu-latest
@@ -23,9 +24,23 @@
               username: ${{ github.actor }}
               password: ${{ secrets.GITHUB_TOKEN }}
 
+          # Generate tags/labels based on the branch
+          - name: Docker meta
+            id: meta
+            uses: docker/metadata-action@v5
+            with:
+              images: ghcr.io/${{ github.repository }}
+              tags: |
+                # main → latest
+                type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
+                # dev  → dev (and in general publish a branch tag)
+                type=raw,value=${{ github.ref_name }}
+    
           - name: Build and push Docker image
             uses: docker/build-push-action@v5
             with:
               context: .
               push: true
-              tags: ghcr.io/${{ github.repository }}:latest
+              tags: ${{ steps.meta.outputs.tags }}
+              labels: ${{ steps.meta.outputs.labels }}
+    
