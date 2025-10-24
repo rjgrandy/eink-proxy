@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PIL import Image, ImageChops, ImageOps
+from PIL import Image, ImageChops, ImageFilter, ImageOps
 
 from .dither import ordered_bw_halftone, ordered_two_color, stucki_error_diffusion
 from .enhance import enhance_photo, enhance_ui
@@ -25,12 +25,29 @@ def quantize_palette_none(img: Image.Image) -> Image.Image:
     return out
 
 
+def _tinted_flat_regions(ui_rgb: Image.Image, flat_mask: Image.Image) -> Image.Image:
+    hsv = ui_rgb.convert("HSV")
+    _, saturation, value = hsv.split()
+
+    sat_mask = saturation.point(
+        lambda s: 255 if s >= SETTINGS.ui_tint_saturation else 0
+    )
+    bright_mask = value.point(lambda v: 255 if v >= SETTINGS.ui_tint_min_value else 0)
+    tinted = ImageChops.multiply(sat_mask, bright_mask)
+    tinted = ImageChops.multiply(tinted, flat_mask)
+    tinted = tinted.filter(ImageFilter.MaxFilter(3))
+    tinted = tinted.filter(ImageFilter.GaussianBlur(radius=1))
+    return tinted.point(lambda p: 255 if p >= 32 else 0)
+
+
 def composite_regional(src_rgb: Image.Image) -> Image.Image:
     edge_mask, mid_gray_mask, flat_mask, photo_src = build_masks(src_rgb)
 
     ui_enhanced = enhance_ui(src_rgb)
     sharp = quantize_palette_none(ui_enhanced)
     palette_mask = palette_fit_mask(ui_enhanced, sharp)
+    tinted_ui = _tinted_flat_regions(ui_enhanced, flat_mask)
+    palette_mask = ImageChops.lighter(palette_mask, tinted_ui)
 
     bw = ordered_bw_halftone(src_rgb)
     halftone = Image.new("RGB", bw.size, (255, 255, 255))
