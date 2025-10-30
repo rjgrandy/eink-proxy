@@ -122,8 +122,7 @@ def create_app() -> Flask:
             )
         )
 
-        return dedent(
-            f"""
+        return f"""
         <!DOCTYPE html>
         <html lang=\"en\">
           <head>
@@ -206,20 +205,6 @@ def create_app() -> Flask:
                 margin: 0;
                 font-size: 1.05rem;
                 color: var(--text-secondary);
-              }}
-
-              .source-hint {{
-                margin-top: 18px;
-                font-size: 0.95rem;
-                color: var(--text-secondary);
-              }}
-
-              .source-hint code {{
-                background: rgba(0, 0, 0, 0.35);
-                padding: 4px 8px;
-                border-radius: 6px;
-                font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, monospace;
-                color: var(--accent);
               }}
 
               .cta-row {{
@@ -372,9 +357,8 @@ def create_app() -> Flask:
                 <p>Monitor, debug, and celebrate your display pipeline. All the knobs, all the modes, right here.</p>
                 <div class=\"cta-row\">
                   <a href=\"/eink-image?dither=regional\">View Hybrid Output</a>
-                  <a href=\"/raw\">Download Raw PNG</a>
+                  <a href=\"{SETTINGS.source_url}\" target=\"_blank\" rel=\"noopener\">Open Source Feed</a>
                 </div>
-                <p class=\"source-hint\">Source feed: <code>{SETTINGS.source_url}</code></p>
               </section>
 
               <section class=\"grid\" aria-label=\"Primary endpoints\">
