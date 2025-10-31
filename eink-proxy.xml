@@ -16,7 +16,8 @@
     <ExtraParams></ExtraParams>
     <PostArgs></PostArgs>
     <Config Name="Dashboard Source URL" Target="SOURCE_URL" Default="http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480" Mode="rw" Description="HTTP URL that returns the dashboard snapshot or image." Type="Variable" Display="always" Required="true" Mask="false"/>
-    <Config Name="Container HTTP Port" Target="5000" Default="5000" Mode="tcp" Description="Port exposed by the container." Type="Port" Display="always" Required="true" Mask="false"/>
+    <Config Name="Container HTTP Port" Target="5500" Default="5500" Mode="tcp" Description="Port exposed by the container." Type="Port" Display="always" Required="true" Mask="false"/>
+    <Config Name="Application Port Variable" Target="PORT" Default="5500" Mode="rw" Description="Internal HTTP port the proxy listens on (should match the container port)." Type="Variable" Display="advanced" Required="false" Mask="false"/>
     <Config Name="Photo Mode" Target="PHOTO_MODE" Default="hybrid" Mode="rw" Description="Photo processing mode (hybrid, fs, stucki, ordered)." Type="Variable" Display="advanced" Required="false" Mask="false"/>
     <Config Name="Cache TTL" Target="CACHE_TTL" Default="5" Mode="rw" Description="Seconds to cache rendered output before re-fetching upstream." Type="Variable" Display="advanced" Required="false" Mask="false"/>
     <Config Name="Source Timeout" Target="SOURCE_TIMEOUT" Default="10.0" Mode="rw" Description="HTTP timeout when contacting the source URL (seconds)." Type="Variable" Display="advanced" Required="false" Mask="false"/>

@@ -24,8 +24,8 @@ docker build -t eink-proxy .
 docker compose up -d --build
 ```
 
-The service will be available on `http://localhost:5000` unless you change the
-`PORT` environment variable.
+The service will be available on `http://localhost:5500` unless you change the
+`HOST_PORT`/`PORT` environment variables.
 
 ## Running on Unraid
 
@@ -39,7 +39,7 @@ The service will be available on `http://localhost:5000` unless you change the
    template you copied, and adjust the `SOURCE_URL` environment variable to the
    dashboard snapshot you want to proxy. Update any of the advanced tunables if
    required.
-4. Deploy the container. The application will expose port `5000` by default
+4. Deploy the container. The application will expose port `5500` by default
    and provide the rendered E-ink-friendly image at `/eink-image`.
 
 ## Runtime configuration
@@ -49,9 +49,12 @@ Common environment variables:
 | Variable | Description | Default |
 | --- | --- | --- |
 | `SOURCE_URL` | URL of the dashboard/snapshot image to proxy. | `http://192.168.1.199:10000/.../einkpanelcolor?viewport=800x480` |
-| `PORT` | Container port exposed by Gunicorn. | `5000` |
+| `HOST_PORT` | Host port published by Docker Compose. | `5500` |
+| `PORT` | Container port exposed by Gunicorn. | `5500` |
 
 The sample compose file points at ``http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480``; update this to match your dashboard.
+If you change `PORT`, update `HOST_PORT` (or adjust your port mapping) so the exposed
+port on the host matches the container process.
 
 Additional environment variables:
 

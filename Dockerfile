@@ -15,7 +15,7 @@ RUN apt-get update \
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=5000 \
+    PORT=5500 \
     SOURCE_URL="http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480" \
     WORKERS=2 \
     THREADS=2
@@ -27,7 +27,7 @@ COPY eink_proxy /app/eink_proxy
 
 RUN pip install --no-cache-dir pillow flask requests gunicorn
 
-EXPOSE 5000
+EXPOSE 5500
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${PORT}/health" || exit 1
