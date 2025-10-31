@@ -47,7 +47,11 @@ def composite_regional(src_rgb: Image.Image) -> Image.Image:
     sharp = quantize_palette_none(ui_enhanced)
     palette_mask = palette_fit_mask(ui_enhanced, sharp)
     tinted_ui = _tinted_flat_regions(ui_enhanced, flat_mask)
+    tinted_ui = ImageChops.subtract(tinted_ui, edge_mask)
     palette_mask = ImageChops.lighter(palette_mask, tinted_ui)
+
+    tinted_mix = ordered_two_color(ui_enhanced, flat_mask)
+    sharp = Image.composite(tinted_mix, sharp, tinted_ui)
 
     bw = ordered_bw_halftone(src_rgb)
     halftone = Image.new("RGB", bw.size, (255, 255, 255))
