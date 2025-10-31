@@ -25,7 +25,7 @@ docker compose up -d --build
 ```
 
 The service will be available on `http://localhost:5000` unless you change the
-`PORT` environment variable.
+`HOST_PORT`/`PORT` environment variables.
 
 ## Running on Unraid
 
@@ -49,9 +49,12 @@ Common environment variables:
 | Variable | Description | Default |
 | --- | --- | --- |
 | `SOURCE_URL` | URL of the dashboard/snapshot image to proxy. | `http://192.168.1.199:10000/.../einkpanelcolor?viewport=800x480` |
+| `HOST_PORT` | Host port published by Docker Compose. | `5000` |
 | `PORT` | Container port exposed by Gunicorn. | `5000` |
 
 The sample compose file points at ``http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480``; update this to match your dashboard.
+If you change `PORT`, update `HOST_PORT` (or adjust your port mapping) so the exposed
+port on the host matches the container process.
 
 Additional environment variables:
 
