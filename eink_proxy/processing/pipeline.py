@@ -5,8 +5,28 @@ from PIL import Image, ImageChops, ImageFilter, ImageOps
 from .dither import ordered_bw_halftone, ordered_two_color, stucki_error_diffusion
 from .enhance import enhance_photo, enhance_ui
 from .masking import build_masks
-from .palette import PAL_IMG, nearest_palette_index, palette_fit_mask
+from .palette import PAL_IMG, mix_ratio, nearest_palette_index, palette_fit_mask
 from ..config import EINK_PALETTE, SETTINGS
+
+
+_BAYER_8X8 = (
+    (0, 48, 12, 60, 3, 51, 15, 63),
+    (32, 16, 44, 28, 35, 19, 47, 31),
+    (8, 56, 4, 52, 11, 59, 7, 55),
+    (40, 24, 36, 20, 43, 27, 39, 23),
+    (2, 50, 14, 62, 1, 49, 13, 61),
+    (34, 18, 46, 30, 33, 17, 45, 29),
+    (10, 58, 6, 54, 9, 57, 5, 53),
+    (42, 26, 38, 22, 41, 25, 37, 21),
+)
+
+_TINTED_HUE_TARGETS = (
+    (2, 0.0),   # red ink
+    (6, 30.0),  # orange ink
+    (3, 60.0),  # yellow ink
+    (4, 120.0),  # green ink
+    (5, 240.0),  # blue ink
+)
 
 
 def quantize_palette_fs(img: Image.Image) -> Image.Image:
@@ -50,7 +70,7 @@ def composite_regional(src_rgb: Image.Image) -> Image.Image:
     tinted_ui = ImageChops.subtract(tinted_ui, edge_mask)
     palette_mask = ImageChops.lighter(palette_mask, tinted_ui)
 
-    tinted_mix = ordered_two_color(ui_enhanced, flat_mask)
+    tinted_mix = _tinted_palette_mix(ui_enhanced)
     sharp = Image.composite(tinted_mix, sharp, tinted_ui)
 
     bw = ordered_bw_halftone(src_rgb)
@@ -87,3 +107,71 @@ def build_debug_overlay(src: Image.Image) -> Image.Image:
     overlay = Image.composite(green, overlay, mid_gray_mask)
     overlay = Image.composite(blue, overlay, flat_mask)
     return overlay
+
+
+def _angular_distance(h1: float, h2: float) -> float:
+    """Return the circular distance between two hue angles in degrees."""
+
+    diff = abs(h1 - h2)
+    return min(diff, 360.0 - diff)
+
+
+def _tinted_palette_mix(ui_rgb: Image.Image) -> Image.Image:
+    """Generate a two-color ordered dither that preserves tint hues."""
+
+    src_rgb = ui_rgb.convert("RGB")
+    hsv = ui_rgb.convert("HSV")
+    width, height = src_rgb.size
+    out = Image.new("RGB", (width, height))
+    src_pixels = src_rgb.load()
+    hsv_pixels = hsv.load()
+    out_pixels = out.load()
+
+    for y in range(height):
+        for x in range(width):
+            r, g, b = src_pixels[x, y]
+            hue_raw, sat, _ = hsv_pixels[x, y]
+            if sat <= 1:
+                # Extremely low saturation can yield unstable hues; fall back to direct mapping.
+                base_index = nearest_palette_index((r, g, b))
+                out_pixels[x, y] = EINK_PALETTE[base_index]
+                continue
+            hue = (hue_raw / 255.0) * 360.0
+
+            base_index = min(
+                _TINTED_HUE_TARGETS,
+                key=lambda item: _angular_distance(hue, item[1]),
+            )[0]
+
+            base_color = EINK_PALETTE[base_index]
+            base_error = (base_color[0] - r) ** 2 + (base_color[1] - g) ** 2 + (base_color[2] - b) ** 2
+
+            best_candidate = base_index
+            best_alpha = 1.0
+            best_error = base_error
+
+            for candidate in range(len(EINK_PALETTE)):
+                if candidate == base_index:
+                    continue
+
+                alpha = mix_ratio((r, g, b), base_index, candidate)
+                candidate_color = EINK_PALETTE[candidate]
+                approx = (
+                    int(round(alpha * base_color[0] + (1.0 - alpha) * candidate_color[0])),
+                    int(round(alpha * base_color[1] + (1.0 - alpha) * candidate_color[1])),
+                    int(round(alpha * base_color[2] + (1.0 - alpha) * candidate_color[2])),
+                )
+                error = (approx[0] - r) ** 2 + (approx[1] - g) ** 2 + (approx[2] - b) ** 2
+
+                if error < best_error:
+                    best_error = error
+                    best_candidate = candidate
+                    best_alpha = alpha
+
+            threshold = (_BAYER_8X8[y & 7][x & 7] + 8) / 72.0
+            choose_base = best_alpha >= threshold
+            index = base_index if choose_base else best_candidate
+            out_pixels[x, y] = EINK_PALETTE[index]
+
+    return out
+
