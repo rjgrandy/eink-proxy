@@ -6,14 +6,14 @@ services:
       context: .
     container_name: eink-image-proxy
     ports:
-      - "${HOST_PORT:-5000}:${PORT:-5000}"
+      - "${HOST_PORT:-5500}:${PORT:-5500}"
     environment:
       # CHANGE THIS to your Home Assistant screenshot URL
       - SOURCE_URL=http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480
-      - PORT=5000
+      - PORT=5500
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:$${PORT:-5000}/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:$${PORT:-5500}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
