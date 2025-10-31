@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 
+from textwrap import dedent
+
 from flask import Flask, jsonify, request, send_file
 
 from .config import SETTINGS, configure_logging
@@ -429,5 +431,6 @@ def create_app() -> Flask:
           </body>
         </html>
         """
+        )
 
     return app
