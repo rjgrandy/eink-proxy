@@ -35,7 +35,7 @@ class ProxySettings:
                 "SOURCE_URL",
                 "http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480",
             ),
-            port=int(os.getenv("PORT", "5000")),
+            port=int(os.getenv("PORT", "5500")),
             contrast=float(os.getenv("CONTRAST", "1.25")),
             saturation=float(os.getenv("SATURATION", "1.2")),
             sharpness_ui=float(os.getenv("SHARPNESS_UI", "2.0")),
