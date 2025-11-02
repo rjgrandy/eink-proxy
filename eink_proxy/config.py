@@ -25,6 +25,8 @@ class ProxySettings:
     smooth_strength: int
     log_level: str
     ui_palette_threshold: int
+    ui_tint_saturation: int
+    ui_tint_min_value: int
 
     @classmethod
     def from_env(cls) -> "ProxySettings":
@@ -33,7 +35,7 @@ class ProxySettings:
                 "SOURCE_URL",
                 "http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480",
             ),
-            port=int(os.getenv("PORT", "5000")),
+            port=int(os.getenv("PORT", "5500")),
             contrast=float(os.getenv("CONTRAST", "1.25")),
             saturation=float(os.getenv("SATURATION", "1.2")),
             sharpness_ui=float(os.getenv("SHARPNESS_UI", "2.0")),
@@ -51,6 +53,8 @@ class ProxySettings:
             smooth_strength=int(os.getenv("SMOOTH_STRENGTH", "1")),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             ui_palette_threshold=int(os.getenv("UI_PALETTE_THR", "1800")),
+            ui_tint_saturation=int(os.getenv("UI_TINT_SAT", "35")),
+            ui_tint_min_value=int(os.getenv("UI_TINT_MIN_V", "120")),
         )
 
 
