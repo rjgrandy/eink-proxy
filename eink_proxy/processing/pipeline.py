@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PIL import Image, ImageChops, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageFilter, ImageOps, ImageStat
 
 from .dither import ordered_bw_halftone, ordered_two_color, stucki_error_diffusion
 from .enhance import enhance_photo, enhance_ui
@@ -27,6 +27,43 @@ _TINTED_HUE_TARGETS = (
     (4, 120.0),  # green ink
     (5, 240.0),  # blue ink
 )
+
+
+def _mask_coverage(mask: Image.Image) -> float:
+    """Return the normalized coverage (0.0-1.0) of an ``L`` mode mask."""
+
+    if mask.mode != "L":
+        mask = mask.convert("L")
+    return ImageStat.Stat(mask).mean[0] / 255.0
+
+
+def _max_local_coverage(mask: Image.Image, grid: int = 16) -> float:
+    """Return the highest normalized coverage observed in a coarse grid."""
+
+    if mask.mode != "L":
+        mask = mask.convert("L")
+
+    width, height = mask.size
+    grid_w = max(1, min(grid, width))
+    grid_h = max(1, min(grid, height))
+    pooled = mask.resize((grid_w, grid_h), resample=Image.BOX)
+    return max(pooled.getdata()) / 255.0
+
+
+def _should_use_floyd(photo_mask: Image.Image, palette_mask: Image.Image) -> bool:
+    """Heuristically decide when a frame benefits from full-image dithering."""
+
+    photo_ratio = _mask_coverage(photo_mask)
+    palette_ratio = _mask_coverage(palette_mask)
+
+    if photo_ratio >= 0.85 and palette_ratio <= 0.2:
+        return True
+
+    if palette_ratio >= 0.3:
+        return False
+
+    local_peak = _max_local_coverage(photo_mask)
+    return photo_ratio >= 0.04 and local_peak >= 0.55
 
 
 def quantize_palette_fs(img: Image.Image) -> Image.Image:
@@ -77,8 +114,16 @@ def composite_regional(src_rgb: Image.Image) -> Image.Image:
     halftone = Image.new("RGB", bw.size, (255, 255, 255))
     halftone.paste((0, 0, 0), mask=ImageOps.invert(bw))
 
+    non_edge = ImageOps.invert(edge_mask)
+    palette_reject = ImageOps.invert(palette_mask)
+    photo_mask = ImageChops.multiply(non_edge, palette_reject)
+
     photo_base = enhance_photo(photo_src)
-    if SETTINGS.photo_mode == "fs":
+    auto_floyd = False
+    if SETTINGS.photo_mode == "hybrid":
+        auto_floyd = _should_use_floyd(photo_mask, palette_mask)
+
+    if SETTINGS.photo_mode == "fs" or auto_floyd:
         photo = quantize_palette_fs(photo_base)
     elif SETTINGS.photo_mode == "stucki":
         photo = stucki_error_diffusion(photo_base)
@@ -90,8 +135,6 @@ def composite_regional(src_rgb: Image.Image) -> Image.Image:
         photo = Image.composite(ordered_img, stucki_img, flat_mask)
 
     mix1 = Image.composite(halftone, sharp, mid_gray_mask)
-    non_edge = ImageOps.invert(edge_mask)
-    photo_mask = ImageChops.multiply(non_edge, ImageOps.invert(palette_mask))
     mix2 = Image.composite(photo, mix1, photo_mask)
     return Image.composite(sharp, mix2, edge_mask)
 
