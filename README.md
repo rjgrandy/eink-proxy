@@ -77,3 +77,97 @@ See the top of `eink_proxy.py` for the full list of tunables.
 - `/health` – Readiness/liveness information.
 - `/raw` – Returns the upstream image without processing.
 - `/debug/masks` – Visualises the mask used to decide between UI and photo processing paths.
+
+### Per-request overrides
+
+The proxy can be instructed to fetch a different upstream resource on a per-request basis.
+This is useful when an external system (for example ESPHome automations or the Puppet Home
+Assistant add-on) wants to trigger different renderings without redeploying the container or
+changing its global environment variables.
+
+#### Override parameters
+
+- `source` – Optional absolute URL that replaces the configured `SOURCE_URL` for a single
+  request. When providing a URL that already contains a query string you **must URL-encode** the
+  value (for example by using `source=https%3A%2F%2Fha.local%2Frender%3Ftheme%3Ddark`) or place it
+  last in the proxy URL so that additional `&` characters do not get treated as separate proxy
+  parameters.
+- `source_base` – Optional scheme + host (and optional base path) that replaces the upstream
+  server while reusing the default path and query string from `SOURCE_URL`. Provide only the
+  portion that should change (for example `https://ha.local:8123` or
+  `https://ha.local:8123/puppet`).
+- `source_path` – Optional path override that can be combined with `source_base`. When the value
+  starts with `/` it is treated as an absolute path; otherwise it is appended to the base path.
+- Any other query parameters (e.g. `dashboard`, `puppet`, `view`, `locale`) are appended to the
+  upstream request. If the parameter already exists on the upstream URL, the values are merged so
+  that both the default and override values are preserved.
+- `dither` continues to control the local rendering behaviour and is never forwarded upstream.
+
+#### Behaviour and caching
+
+- Overrides are applied on every endpoint that fetches the upstream image (`/eink-image`,
+  `/raw`, `/debug/masks`).
+- The resulting upstream URL is cached according to `CACHE_TTL`. The cache key includes all
+  override parameters, so different dashboards or Puppet configurations produce distinct cache
+  entries.
+- If an override results in an invalid URL, the request fails with a `400` error explaining which
+  override was rejected.
+
+#### Example requests
+
+Fetch a specific Puppet dashboard from Home Assistant while forcing hybrid dithering:
+
+```bash
+curl "http://proxy.local:5500/eink-image?dashboard=family&puppet=night_mode"
+```
+
+Render the same Lovelace view through a different Home Assistant instance by overriding only the
+base URL:
+
+```bash
+curl "http://proxy.local:5500/eink-image?source_base=https://ha.local:8123"
+```
+
+Request a different Puppet configuration exposed on a nested path:
+
+```bash
+curl "http://proxy.local:5500/eink-image?source_base=https://ha.local:8123/puppet&source_path=render/dashboard&config=evening"
+```
+
+Download the raw upstream image for diagnostics while targeting a custom snapshot. The upstream
+URL already has query parameters, so `curl` URL-encodes it automatically:
+
+```bash
+curl -G -o raw.png "http://proxy.local:5500/raw" --data-urlencode "source=https://snapshots.local/camera.jpg?refresh=true" --data "ts=$(date +%s)"
+```
+
+#### Integrating with ESPHome
+
+Within an ESPHome automation you can dynamically build the URL that the `http_request` action
+should call. The snippet below switches between two Puppet configurations based on a binary
+sensor, requesting the processed E-ink image when the display refreshes:
+
+```yaml
+script:
+  - id: refresh_eink_display
+    then:
+      - http_request.get:
+          url: !lambda |-
+            if (id(night_mode).state) {
+              return "http://proxy.local:5500/eink-image?dashboard=family&puppet=night_mode";
+            } else {
+              return "http://proxy.local:5500/eink-image?dashboard=family&puppet=day_mode";
+            }
+```
+
+#### Troubleshooting tips
+
+- Use `/debug/masks` with the same override parameters to verify that the correct dashboard is
+  being fetched while inspecting the photo/UI segmentation.
+- If Home Assistant endpoints require authentication, place the required tokens directly in the
+  `source` parameter (for example `source=https://token@ha.local/...`) or configure a reverse
+  proxy that injects credentials.
+- When working with the Puppet add-on, inspect its logs to confirm which query parameters it
+  expects. Anything you provide on the proxy URL is transparently forwarded to the upstream
+  request. If you need to change only the Puppet base address, prefer `source_base`/`source_path`
+  instead of embedding a full URL inside another URL.
