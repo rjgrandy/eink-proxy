@@ -24,11 +24,41 @@ def create_app() -> Flask:
     configure_logging()
     app = Flask(__name__)
 
+    def _source_request_args(
+        ignore: set[str] | None = None,
+    ) -> tuple[str | None, str | None, str | None, dict[str, str]]:
+        ignore = set(ignore or ())
+        ignore.update({"source", "source_base", "source_path"})
+        source_override = request.args.get("source")
+        base_override = request.args.get("source_base")
+        path_override = request.args.get("source_path")
+        overrides: dict[str, str] = {}
+        for key in request.args:
+            if key == "source" or key in ignore:
+                continue
+            value = request.args.get(key)
+            if value is not None:
+                overrides[key] = value
+        return (
+            source_override or None,
+            base_override or None,
+            path_override,
+            overrides,
+        )
+
     @app.route("/eink-image")
     def eink_image():
         mode = (request.args.get("dither", "regional") or "regional").lower()
+        source_override, base_override, path_override, overrides = _source_request_args(
+            ignore={"dither"}
+        )
         try:
-            src = FETCHER.fetch_source()
+            src = FETCHER.fetch_source(
+                source_url=source_override,
+                base_url=base_override,
+                path=path_override,
+                overrides=overrides or None,
+            )
             if mode == "regional":
                 out = composite_regional(src)
             elif mode == "true":
@@ -38,6 +68,8 @@ def create_app() -> Flask:
             else:
                 out = composite_regional(src)
             return send_png(out)
+        except ValueError as exc:
+            return (str(exc), 400)
         except Exception as exc:  # pragma: no cover - runtime fallback path
             cached = last_good_png()
             if cached:
@@ -46,17 +78,35 @@ def create_app() -> Flask:
 
     @app.route("/raw")
     def raw():
+        source_override, base_override, path_override, overrides = _source_request_args()
         try:
-            return send_png(FETCHER.fetch_source())
+            return send_png(
+                FETCHER.fetch_source(
+                    source_url=source_override,
+                    base_url=base_override,
+                    path=path_override,
+                    overrides=overrides or None,
+                )
+            )
+        except ValueError as exc:
+            return (str(exc), 400)
         except Exception as exc:  # pragma: no cover - runtime fallback path
             return (str(exc), 500)
 
     @app.route("/debug/masks")
     def debug_masks():
+        source_override, base_override, path_override, overrides = _source_request_args()
         try:
-            src = FETCHER.fetch_source()
+            src = FETCHER.fetch_source(
+                source_url=source_override,
+                base_url=base_override,
+                path=path_override,
+                overrides=overrides or None,
+            )
             overlay = build_debug_overlay(src)
             return send_png(overlay)
+        except ValueError as exc:
+            return (str(exc), 400)
         except Exception as exc:  # pragma: no cover - runtime fallback path
             return (f"error: {exc}", 500)
 
