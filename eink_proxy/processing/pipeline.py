@@ -60,7 +60,7 @@ def _tinted_flat_regions(ui_rgb: Image.Image, flat_mask: Image.Image) -> Image.I
 
 
 def composite_regional(src_rgb: Image.Image) -> Image.Image:
-    edge_mask, mid_gray_mask, flat_mask, photo_src = build_masks(src_rgb)
+    edge_mask, mid_gray_mask, flat_mask, texture_mask, photo_src = build_masks(src_rgb)
 
     ui_enhanced = enhance_ui(src_rgb)
     sharp = quantize_palette_none(ui_enhanced)
@@ -91,20 +91,24 @@ def composite_regional(src_rgb: Image.Image) -> Image.Image:
     mix1 = Image.composite(halftone, sharp, mid_gray_mask)
     non_edge = ImageOps.invert(edge_mask)
     photo_mask = ImageChops.multiply(non_edge, ImageOps.invert(palette_mask))
+    texture_photo_mask = ImageChops.multiply(non_edge, texture_mask)
+    photo_mask = ImageChops.lighter(photo_mask, texture_photo_mask)
     mix2 = Image.composite(photo, mix1, photo_mask)
     return Image.composite(sharp, mix2, edge_mask)
 
 
 def build_debug_overlay(src: Image.Image) -> Image.Image:
-    edge_mask, mid_gray_mask, flat_mask, _ = build_masks(src)
+    edge_mask, mid_gray_mask, flat_mask, texture_mask, _ = build_masks(src)
     base = composite_regional(src)
     red = Image.new("RGB", src.size, (255, 0, 0))
     green = Image.new("RGB", src.size, (0, 255, 0))
     blue = Image.new("RGB", src.size, (0, 0, 255))
+    magenta = Image.new("RGB", src.size, (255, 0, 255))
     overlay = base.copy()
     overlay = Image.composite(red, overlay, edge_mask)
     overlay = Image.composite(green, overlay, mid_gray_mask)
     overlay = Image.composite(blue, overlay, flat_mask)
+    overlay = Image.composite(magenta, overlay, texture_mask)
     return overlay
 
 
