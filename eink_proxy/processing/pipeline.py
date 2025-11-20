@@ -8,7 +8,7 @@ from .masking import build_masks
 from .palette import PAL_IMG, mix_ratio, nearest_palette_index, palette_fit_mask
 from ..config import EINK_PALETTE, SETTINGS, ProxySettings
 
-# ... (Keep _BAYER_8X8 and _TINTED_HUE_TARGETS from previous files) ...
+
 _BAYER_8X8 = (
     (0, 48, 12, 60, 3, 51, 15, 63),
     (32, 16, 44, 28, 35, 19, 47, 31),
@@ -20,16 +20,18 @@ _BAYER_8X8 = (
     (42, 26, 38, 22, 41, 25, 37, 21),
 )
 
+# Removed Orange (Index 6, Hue 30.0)
 _TINTED_HUE_TARGETS = (
     (2, 0.0),   # red ink
-    (6, 30.0),  # orange ink
     (3, 60.0),  # yellow ink
-    (4, 120.0),  # green ink
-    (5, 240.0),  # blue ink
+    (4, 120.0), # green ink
+    (5, 240.0), # blue ink
 )
+
 
 def quantize_palette_fs(img: Image.Image) -> Image.Image:
     return img.quantize(palette=PAL_IMG, dither=Image.FLOYDSTEINBERG).convert("RGB")
+
 
 def quantize_palette_none(img: Image.Image) -> Image.Image:
     src = img.convert("RGB")
@@ -42,28 +44,88 @@ def quantize_palette_none(img: Image.Image) -> Image.Image:
             dst_pixels[x, y] = EINK_PALETTE[nearest_palette_index(src_pixels[x, y])]
     return out
 
+
 def _tinted_flat_regions(ui_rgb: Image.Image, flat_mask: Image.Image, settings: ProxySettings) -> Image.Image:
     hsv = ui_rgb.convert("HSV")
     _, saturation, value = hsv.split()
 
-    sat_mask = saturation.point(lambda s: 255 if s >= settings.ui_tint_saturation else 0)
+    sat_mask = saturation.point(
+        lambda s: 255 if s >= settings.ui_tint_saturation else 0
+    )
     bright_mask = value.point(lambda v: 255 if v >= settings.ui_tint_min_value else 0)
-    
     tinted = ImageChops.multiply(sat_mask, bright_mask)
     tinted = ImageChops.multiply(tinted, flat_mask)
-    
-    # Clean up tint mask to be solid blocks
     tinted = tinted.filter(ImageFilter.MaxFilter(3))
     tinted = tinted.filter(ImageFilter.GaussianBlur(radius=1))
     return tinted.point(lambda p: 255 if p >= 32 else 0)
 
-# ... (Keep _angular_distance and _tinted_palette_mix from previous files) ...
+
+def composite_regional(src_rgb: Image.Image, settings: ProxySettings = SETTINGS) -> Image.Image:
+    src_rgb = src_rgb.convert("RGB")
+    edge_mask, mid_gray_mask, flat_mask, photo_mask = build_masks(src_rgb, settings=settings)
+
+    ui_enhanced = enhance_ui(src_rgb, settings=settings)
+    sharp_base = quantize_palette_none(ui_enhanced)
+    
+    # High Error Mask (Purple fix)
+    diff = ImageChops.difference(src_rgb, sharp_base)
+    diff_gray = diff.convert("L")
+    high_error_mask = diff_gray.point(lambda p: 255 if p > 45 else 0)
+    high_error_mask = high_error_mask.filter(ImageFilter.MedianFilter(3))
+    high_error_mask = high_error_mask.filter(ImageFilter.GaussianBlur(3))
+
+    palette_mask = palette_fit_mask(ui_enhanced, sharp_base, settings=settings)
+    tinted_ui = _tinted_flat_regions(ui_enhanced, flat_mask, settings=settings)
+    tinted_ui = ImageChops.subtract(tinted_ui, edge_mask)
+    palette_mask = ImageChops.lighter(palette_mask, tinted_ui)
+
+    tinted_mix = _tinted_palette_mix(ui_enhanced)
+    sharp_composite = Image.composite(tinted_mix, sharp_base, tinted_ui)
+
+    photo_base = enhance_photo(src_rgb, settings=settings)
+    if settings.photo_mode == "fs":
+        dithered_layer = quantize_palette_fs(photo_base)
+    elif settings.photo_mode == "stucki":
+        dithered_layer = stucki_error_diffusion(photo_base)
+    elif settings.photo_mode == "ordered":
+        dithered_layer = ordered_two_color(photo_base, flat_mask)
+    else:
+        ordered = ordered_two_color(photo_base, flat_mask)
+        stucki = stucki_error_diffusion(photo_base)
+        dithered_layer = Image.composite(ordered, stucki, flat_mask)
+
+    final_out = dithered_layer.copy()
+    
+    safe_palette_match = ImageChops.subtract(palette_mask, high_error_mask)
+    ui_region_mask = ImageChops.lighter(edge_mask, safe_palette_match)
+    
+    final_out.paste(sharp_composite, mask=ui_region_mask)
+    
+    # Force photos to dither
+    final_out.paste(dithered_layer, mask=photo_mask)
+    
+    return final_out
+
+
+def build_debug_overlay(src: Image.Image, settings: ProxySettings = SETTINGS) -> Image.Image:
+    edge_mask, mid_gray_mask, flat_mask, _ = build_masks(src, settings=settings)
+    base = composite_regional(src, settings=settings)
+    red = Image.new("RGB", src.size, (255, 0, 0))
+    green = Image.new("RGB", src.size, (0, 255, 0))
+    blue = Image.new("RGB", src.size, (0, 0, 255))
+    overlay = base.copy()
+    overlay = Image.composite(red, overlay, edge_mask)
+    overlay = Image.composite(green, overlay, mid_gray_mask)
+    overlay = Image.composite(blue, overlay, flat_mask)
+    return overlay
+
+
 def _angular_distance(h1: float, h2: float) -> float:
     diff = abs(h1 - h2)
     return min(diff, 360.0 - diff)
 
+
 def _tinted_palette_mix(ui_rgb: Image.Image) -> Image.Image:
-    # (Code remains identical to previous version)
     src_rgb = ui_rgb.convert("RGB")
     hsv = ui_rgb.convert("HSV")
     width, height = src_rgb.size
@@ -118,75 +180,3 @@ def _tinted_palette_mix(ui_rgb: Image.Image) -> Image.Image:
             out_pixels[x, y] = EINK_PALETTE[index]
 
     return out
-
-
-def composite_regional(src_rgb: Image.Image, settings: ProxySettings = SETTINGS) -> Image.Image:
-    src_rgb = src_rgb.convert("RGB")
-    
-    # 1. Generate Masks
-    # photo_mask here is the result of the new Texture Energy algorithm
-    edge_mask, mid_gray_mask, flat_mask, photo_mask = build_masks(src_rgb, settings=settings)
-
-    # 2. Generate Sharp UI Layer
-    ui_enhanced = enhance_ui(src_rgb, settings=settings)
-    sharp_base = quantize_palette_none(ui_enhanced)
-    
-    # 3. Detect "Bad Colors" (High Error Mask)
-    # This fixes the purple background issue.
-    # If the Sharp version is too different from Source, it means we don't have that ink.
-    # Force Dither in these spots.
-    diff = ImageChops.difference(src_rgb, sharp_base)
-    diff_gray = diff.convert("L")
-    # Threshold 45 is strict enough to allow Black/White matching but loose enough to catch Purple/Dark Blue
-    high_error_mask = diff_gray.point(lambda p: 255 if p > 45 else 0) 
-    high_error_mask = high_error_mask.filter(ImageFilter.MedianFilter(3))
-    high_error_mask = high_error_mask.filter(ImageFilter.GaussianBlur(3))
-
-    # 4. Apply Tinting to UI
-    # (Keeps light pastel backgrounds looking solid instead of noisy)
-    palette_mask = palette_fit_mask(ui_enhanced, sharp_base, settings=settings)
-    tinted_ui = _tinted_flat_regions(ui_enhanced, flat_mask, settings=settings)
-    tinted_ui = ImageChops.subtract(tinted_ui, edge_mask)
-    
-    # Mix the specialized tinted dithering into the sharp layer
-    tinted_mix = _tinted_palette_mix(ui_enhanced)
-    sharp_composite = Image.composite(tinted_mix, sharp_base, tinted_ui)
-
-    # 5. Generate Photo/Dither Layer
-    photo_base = enhance_photo(src_rgb, settings=settings) # Note: use src_rgb, not photo_src (deprecated)
-    
-    if settings.photo_mode == "fs":
-        dithered_layer = quantize_palette_fs(photo_base)
-    elif settings.photo_mode == "stucki":
-        dithered_layer = stucki_error_diffusion(photo_base)
-    elif settings.photo_mode == "ordered":
-        dithered_layer = ordered_two_color(photo_base, flat_mask)
-    else:
-        # Default hybrid photo processing
-        ordered = ordered_two_color(photo_base, flat_mask)
-        stucki = stucki_error_diffusion(photo_base)
-        dithered_layer = Image.composite(ordered, stucki, flat_mask)
-
-    # 6. Final Composite Logic
-    # Start with Dithered Layer (Photos/Backgrounds)
-    final_out = dithered_layer.copy()
-    
-    # Decide where to put the Sharp UI
-    # Logic: Show Sharp UI IF:
-    #   1. It is an Edge (Text/Lines) ... AND NOT in a Photo (handled by clean_edges in masking.py)
-    #   2. OR It matches the palette well (White background, solid Red blocks) ... AND NOT High Error (Purple)
-    
-    # "Safe to be sharp" mask:
-    safe_palette_match = ImageChops.subtract(palette_mask, high_error_mask)
-    
-    # Combine Edges + Safe Solid Colors
-    ui_region_mask = ImageChops.lighter(edge_mask, safe_palette_match)
-    
-    # Paste Sharp UI on top of Dithered Background
-    final_out.paste(sharp_composite, mask=ui_region_mask)
-    
-    # 7. Final Safety: Force Photo Mask regions to be Dithered
-    # (Just in case the edge mask bled into the photo)
-    final_out.paste(dithered_layer, mask=photo_mask)
-
-    return final_out
