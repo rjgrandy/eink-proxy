@@ -27,6 +27,7 @@ class ProxySettings:
     ui_palette_threshold: int
     ui_tint_saturation: int
     ui_tint_min_value: int
+    texture_density_threshold: int
 
     @classmethod
     def from_env(cls) -> "ProxySettings":
@@ -55,6 +56,7 @@ class ProxySettings:
             ui_palette_threshold=int(os.getenv("UI_PALETTE_THR", "1800")),
             ui_tint_saturation=int(os.getenv("UI_TINT_SAT", "35")),
             ui_tint_min_value=int(os.getenv("UI_TINT_MIN_V", "120")),
+            texture_density_threshold=int(os.getenv("TEXTURE_DENSITY_THR", "12")),
         )
 
 
