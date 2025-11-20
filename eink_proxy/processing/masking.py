@@ -23,12 +23,19 @@ def bandpass_mask_luma(luma: Image.Image, lo: int, hi: int) -> Image.Image:
 
 def build_masks(
     src_rgb: Image.Image,
-) -> Tuple[Image.Image, Image.Image, Image.Image, Image.Image, Image.Image]:
+) -> Tuple[
+    Image.Image, Image.Image, Image.Image, Image.Image, Image.Image, Image.Image
+]:
     gray = src_rgb.convert("L")
     edges = gray.filter(ImageFilter.FIND_EDGES)
     edge_mask = edges.point(lambda p: 255 if p >= SETTINGS.edge_threshold else 0).filter(
         ImageFilter.GaussianBlur(SETTINGS.mask_blur)
     )
+
+    fine_detail = edges.point(lambda p: 255 if p >= SETTINGS.edge_threshold else 0)
+    fine_detail = fine_detail.filter(ImageFilter.MaxFilter(3))
+    if SETTINGS.photo_mask_blur > 0:
+        fine_detail = fine_detail.filter(ImageFilter.GaussianBlur(SETTINGS.photo_mask_blur))
 
     hsv = src_rgb.convert("HSV")
     _, saturation, value = hsv.split()
@@ -59,4 +66,4 @@ def build_masks(
     else:
         src_smoothed = src_rgb
 
-    return edge_mask, mid_gray_mask, flat, texture_mask, src_smoothed
+    return edge_mask, mid_gray_mask, flat, texture_mask, fine_detail, src_smoothed

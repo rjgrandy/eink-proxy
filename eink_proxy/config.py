@@ -17,6 +17,7 @@ class ProxySettings:
     mid_l_max: int
     mid_s_max: int
     mask_blur: int
+    photo_mask_blur: int
     timeout: float
     retries: int
     cache_ttl: float
@@ -46,6 +47,7 @@ class ProxySettings:
             mid_l_max=int(os.getenv("MID_L_MAX", "200")),
             mid_s_max=int(os.getenv("MID_S_MAX", "90")),
             mask_blur=int(os.getenv("MASK_BLUR", "2")),
+            photo_mask_blur=int(os.getenv("PHOTO_MASK_BLUR", "1")),
             timeout=float(os.getenv("SOURCE_TIMEOUT", "10.0")),
             retries=int(os.getenv("SOURCE_RETRIES", "2")),
             cache_ttl=float(os.getenv("CACHE_TTL", "5")),
