@@ -8,7 +8,7 @@
     <Privileged>false</Privileged>
     <Support>https://github.com/rjgrandy/eink-proxy/issues</Support>
     <Project>https://github.com/rjgrandy/eink-proxy</Project>
-    <Overview>This container proxies an upstream dashboard image and remaps it to the six-colour Spectra 6 Waveshare E-ink palette (black, white, red, green, blue, yellow). Set SOURCE_URL to the HTTP endpoint that returns the dashboard snapshot you would like to display.</Overview>
+    <Overview>This container proxies an upstream dashboard image and remaps it to the seven-colour Waveshare E-ink palette. Set SOURCE_URL to the HTTP endpoint that returns the dashboard snapshot you would like to display.</Overview>
     <Category>HomeAutomation:Tools</Category>
     <WebUI>http://[IP]:[PORT:5500]/</WebUI> 
     <TemplateURL>https://raw.githubusercontent.com/rjgrandy/eink-proxy/main/eink-proxy.xml</TemplateURL>
