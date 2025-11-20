@@ -29,7 +29,20 @@ _TINTED_HUE_TARGETS = (
 
 
 def quantize_palette_fs(img: Image.Image) -> Image.Image:
-    return img.quantize(palette=PAL_IMG, dither=Image.FLOYDSTEINBERG).convert("RGB")
+    """Quantize an image to the E-ink palette using Floyd–Steinberg dithering.
+
+    Pillow's ``quantize`` only supports a subset of image modes; attempting to
+    run it against an RGBA or palette image raises ``ValueError: image has wrong
+    mode``. Normalise the input to RGB first so callers can pass whatever the
+    upstream source provides (e.g., PNGs with alpha channels) without
+    tripping the mode guardrail.
+    """
+
+    return (
+        img.convert("RGB")
+        .quantize(palette=PAL_IMG, dither=Image.FLOYDSTEINBERG)
+        .convert("RGB")
+    )
 
 
 def quantize_palette_none(img: Image.Image) -> Image.Image:
@@ -60,6 +73,8 @@ def _tinted_flat_regions(ui_rgb: Image.Image, flat_mask: Image.Image) -> Image.I
 
 
 def composite_regional(src_rgb: Image.Image) -> Image.Image:
+    src_rgb = src_rgb.convert("RGB")
+
     (
         edge_mask,
         mid_gray_mask,
