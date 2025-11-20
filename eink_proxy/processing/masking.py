@@ -21,7 +21,9 @@ def bandpass_mask_luma(luma: Image.Image, lo: int, hi: int) -> Image.Image:
     return ImageChops.subtract(low, high)
 
 
-def build_masks(src_rgb: Image.Image) -> Tuple[Image.Image, Image.Image, Image.Image, Image.Image]:
+def build_masks(
+    src_rgb: Image.Image,
+) -> Tuple[Image.Image, Image.Image, Image.Image, Image.Image, Image.Image]:
     gray = src_rgb.convert("L")
     edges = gray.filter(ImageFilter.FIND_EDGES)
     edge_mask = edges.point(lambda p: 255 if p >= SETTINGS.edge_threshold else 0).filter(
@@ -38,6 +40,18 @@ def build_masks(src_rgb: Image.Image) -> Tuple[Image.Image, Image.Image, Image.I
 
     grad = edges.filter(ImageFilter.GaussianBlur(1))
     flat = grad.point(lambda p: 255 if p < SETTINGS.sky_gradient_threshold else 0)
+
+    gray_f = gray.convert("F")
+    mean = gray_f.filter(ImageFilter.BoxBlur(2))
+    variance = ImageChops.subtract(
+        ImageChops.multiply(gray_f, gray_f).filter(ImageFilter.BoxBlur(2)),
+        ImageChops.multiply(mean, mean),
+    )
+    texture_mask = variance.point(
+        lambda v: 255 if v >= SETTINGS.texture_variance_threshold else 0
+    ).convert("L")
+    texture_mask = texture_mask.filter(ImageFilter.GaussianBlur(SETTINGS.mask_blur))
+
     if SETTINGS.smooth_strength > 0:
         kernel = 3 if SETTINGS.smooth_strength == 1 else 5
         smooth = src_rgb.filter(ImageFilter.MedianFilter(kernel))
@@ -45,4 +59,4 @@ def build_masks(src_rgb: Image.Image) -> Tuple[Image.Image, Image.Image, Image.I
     else:
         src_smoothed = src_rgb
 
-    return edge_mask, mid_gray_mask, flat, src_smoothed
+    return edge_mask, mid_gray_mask, flat, texture_mask, src_smoothed

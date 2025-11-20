@@ -62,6 +62,7 @@ Additional environment variables:
 | Variable | Description | Default |
 | --- | --- | --- |
 | `PHOTO_MODE` | Photo processing mode (`hybrid`, `fs`, `stucki`, `ordered`). | `hybrid` |
+| `PHOTO_VAR_THR` | Variance threshold for detecting textured/photo regions that should bypass UI sharpening. | `1200` |
 | `SKY_GRAD_THR` | Gradient threshold that controls where photo smoothing applies. | `14` |
 | `SMOOTH_STRENGTH` | Strength of edge-aware smoothing in flat areas. | `1` |
 | `CACHE_TTL` | Seconds to cache the most recent rendered PNG. | `5` |
