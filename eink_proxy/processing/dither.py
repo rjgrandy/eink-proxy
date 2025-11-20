@@ -20,11 +20,15 @@ def ordered_bw_halftone(img: Image.Image) -> Image.Image:
     threshold_table = [[int((value + 0.5) * 4) for value in row] for row in bm8]
     width, height = img.size
     src = img.load()
-    out = Image.new("1", (width, height))
+    out = Image.new("L", (width, height))
     dst = out.load()
     for y in range(height):
         for x in range(width):
             dst[x, y] = 255 if src[x, y] > threshold_table[y % 8][x % 8] else 0
+
+    # ``ImageOps.invert`` only accepts "L"/"RGB" modes. Returning an "L" image keeps
+    # the downstream compositing flow compatible while preserving the binary mask
+    # semantics of the halftone output.
     return out
 
 
