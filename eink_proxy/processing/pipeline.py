@@ -21,8 +21,7 @@ _BAYER_8X8 = (
 )
 
 _TINTED_HUE_TARGETS = (
-    (2, 0.0),   # red ink
-    (6, 30.0),  # orange ink
+    (2, 0.0),  # red ink
     (3, 60.0),  # yellow ink
     (4, 120.0),  # green ink
     (5, 240.0),  # blue ink
