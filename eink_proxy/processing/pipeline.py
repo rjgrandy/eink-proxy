@@ -152,3 +152,15 @@ def composite_regional(src_rgb: Image.Image, settings: ProxySettings = SETTINGS)
     final_out.paste(dithered_layer, mask=photo_mask) # Force photos to dither
     
     return final_out
+
+def build_debug_overlay(src: Image.Image, settings: ProxySettings = SETTINGS) -> Image.Image:
+    edge_mask, mid_gray_mask, flat_mask, _ = build_masks(src, settings=settings)
+    base = composite_regional(src, settings=settings)
+    red = Image.new("RGB", src.size, (255, 0, 0))
+    green = Image.new("RGB", src.size, (0, 255, 0))
+    blue = Image.new("RGB", src.size, (0, 0, 255))
+    overlay = base.copy()
+    overlay = Image.composite(red, overlay, edge_mask)
+    overlay = Image.composite(green, overlay, mid_gray_mask)
+    overlay = Image.composite(blue, overlay, flat_mask)
+    return overlay
