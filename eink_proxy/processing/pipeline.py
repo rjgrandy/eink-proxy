@@ -6,7 +6,7 @@ from .dither import ordered_bw_halftone, ordered_two_color, stucki_error_diffusi
 from .enhance import enhance_photo, enhance_ui
 from .masking import build_masks
 from .palette import PAL_IMG, mix_ratio, nearest_palette_index, palette_fit_mask
-from ..config import EINK_PALETTE, SETTINGS
+from ..config import EINK_PALETTE, SETTINGS, ProxySettings
 
 
 _BAYER_8X8 = (
@@ -45,14 +45,14 @@ def quantize_palette_none(img: Image.Image) -> Image.Image:
     return out
 
 
-def _tinted_flat_regions(ui_rgb: Image.Image, flat_mask: Image.Image) -> Image.Image:
+def _tinted_flat_regions(ui_rgb: Image.Image, flat_mask: Image.Image, settings: ProxySettings) -> Image.Image:
     hsv = ui_rgb.convert("HSV")
     _, saturation, value = hsv.split()
 
     sat_mask = saturation.point(
-        lambda s: 255 if s >= SETTINGS.ui_tint_saturation else 0
+        lambda s: 255 if s >= settings.ui_tint_saturation else 0
     )
-    bright_mask = value.point(lambda v: 255 if v >= SETTINGS.ui_tint_min_value else 0)
+    bright_mask = value.point(lambda v: 255 if v >= settings.ui_tint_min_value else 0)
     tinted = ImageChops.multiply(sat_mask, bright_mask)
     tinted = ImageChops.multiply(tinted, flat_mask)
     tinted = tinted.filter(ImageFilter.MaxFilter(3))
@@ -60,13 +60,21 @@ def _tinted_flat_regions(ui_rgb: Image.Image, flat_mask: Image.Image) -> Image.I
     return tinted.point(lambda p: 255 if p >= 32 else 0)
 
 
-def composite_regional(src_rgb: Image.Image) -> Image.Image:
-    edge_mask, mid_gray_mask, flat_mask, photo_src = build_masks(src_rgb)
+def composite_regional(src_rgb: Image.Image, settings: ProxySettings = SETTINGS) -> Image.Image:
+    src_rgb = src_rgb.convert("RGB")
+    edge_mask, mid_gray_mask, flat_mask, photo_src = build_masks(src_rgb, settings=settings)
 
-    ui_enhanced = enhance_ui(src_rgb)
+    ui_enhanced = enhance_ui(src_rgb, settings=settings)
     sharp = quantize_palette_none(ui_enhanced)
-    palette_mask = palette_fit_mask(ui_enhanced, sharp)
-    tinted_ui = _tinted_flat_regions(ui_enhanced, flat_mask)
+    
+    # "High Error" mask fix for purple backgrounds/icons
+    diff = ImageChops.difference(src_rgb, sharp)
+    diff_gray = diff.convert("L")
+    high_error_mask = diff_gray.point(lambda p: 255 if p > 35 else 0)
+    high_error_mask = high_error_mask.filter(ImageFilter.GaussianBlur(2))
+
+    palette_mask = palette_fit_mask(ui_enhanced, sharp, settings=settings)
+    tinted_ui = _tinted_flat_regions(ui_enhanced, flat_mask, settings=settings)
     tinted_ui = ImageChops.subtract(tinted_ui, edge_mask)
     palette_mask = ImageChops.lighter(palette_mask, tinted_ui)
 
@@ -77,12 +85,13 @@ def composite_regional(src_rgb: Image.Image) -> Image.Image:
     halftone = Image.new("RGB", bw.size, (255, 255, 255))
     halftone.paste((0, 0, 0), mask=ImageOps.invert(bw))
 
-    photo_base = enhance_photo(photo_src)
-    if SETTINGS.photo_mode == "fs":
+    photo_base = enhance_photo(photo_src, settings=settings)
+    
+    if settings.photo_mode == "fs":
         photo = quantize_palette_fs(photo_base)
-    elif SETTINGS.photo_mode == "stucki":
+    elif settings.photo_mode == "stucki":
         photo = stucki_error_diffusion(photo_base)
-    elif SETTINGS.photo_mode == "ordered":
+    elif settings.photo_mode == "ordered":
         photo = ordered_two_color(photo_base, flat_mask)
     else:
         ordered_img = ordered_two_color(photo_base, flat_mask)
@@ -91,14 +100,16 @@ def composite_regional(src_rgb: Image.Image) -> Image.Image:
 
     mix1 = Image.composite(halftone, sharp, mid_gray_mask)
     non_edge = ImageOps.invert(edge_mask)
-    photo_mask = ImageChops.multiply(non_edge, ImageOps.invert(palette_mask))
-    mix2 = Image.composite(photo, mix1, photo_mask)
+    base_photo_mask = ImageChops.multiply(non_edge, ImageOps.invert(palette_mask))
+    final_photo_mask = ImageChops.lighter(base_photo_mask, high_error_mask)
+    
+    mix2 = Image.composite(photo, mix1, final_photo_mask)
     return Image.composite(sharp, mix2, edge_mask)
 
 
-def build_debug_overlay(src: Image.Image) -> Image.Image:
-    edge_mask, mid_gray_mask, flat_mask, _ = build_masks(src)
-    base = composite_regional(src)
+def build_debug_overlay(src: Image.Image, settings: ProxySettings = SETTINGS) -> Image.Image:
+    edge_mask, mid_gray_mask, flat_mask, _ = build_masks(src, settings=settings)
+    base = composite_regional(src, settings=settings)
     red = Image.new("RGB", src.size, (255, 0, 0))
     green = Image.new("RGB", src.size, (0, 255, 0))
     blue = Image.new("RGB", src.size, (0, 0, 255))
@@ -110,15 +121,11 @@ def build_debug_overlay(src: Image.Image) -> Image.Image:
 
 
 def _angular_distance(h1: float, h2: float) -> float:
-    """Return the circular distance between two hue angles in degrees."""
-
     diff = abs(h1 - h2)
     return min(diff, 360.0 - diff)
 
 
 def _tinted_palette_mix(ui_rgb: Image.Image) -> Image.Image:
-    """Generate a two-color ordered dither that preserves tint hues."""
-
     src_rgb = ui_rgb.convert("RGB")
     hsv = ui_rgb.convert("HSV")
     width, height = src_rgb.size
@@ -132,7 +139,6 @@ def _tinted_palette_mix(ui_rgb: Image.Image) -> Image.Image:
             r, g, b = src_pixels[x, y]
             hue_raw, sat, _ = hsv_pixels[x, y]
             if sat <= 1:
-                # Extremely low saturation can yield unstable hues; fall back to direct mapping.
                 base_index = nearest_palette_index((r, g, b))
                 out_pixels[x, y] = EINK_PALETTE[base_index]
                 continue
@@ -174,4 +180,3 @@ def _tinted_palette_mix(ui_rgb: Image.Image) -> Image.Image:
             out_pixels[x, y] = EINK_PALETTE[index]
 
     return out
-
