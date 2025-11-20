@@ -59,38 +59,8 @@ def _tinted_flat_regions(ui_rgb: Image.Image, flat_mask: Image.Image) -> Image.I
     return tinted.point(lambda p: 255 if p >= 32 else 0)
 
 
-def _detail_mask(edge_mask: Image.Image) -> Image.Image:
-    """Expand the detected edges to protect thin UI glyphs from dithering."""
-
-    return edge_mask.filter(ImageFilter.MaxFilter(3))
-
-
-def _color_priority_mask(ui_rgb: Image.Image, palette_mask: Image.Image) -> Image.Image:
-    """Highlight colorful regions that benefit from full dithering.
-
-    Highly saturated and bright areas such as weather cards or charts are good
-    candidates for error-diffusion dithering, but text and thin grid lines
-    should remain crisp. This mask emphasizes saturated regions that are *not*
-    already close to the palette while letting sharp details punch through in a
-    later composite step.
-    """
-
-    hsv = ui_rgb.convert("HSV")
-    _, saturation, value = hsv.split()
-
-    saturation_mask = saturation.point(lambda s: 255 if s >= SETTINGS.ui_tint_saturation else 0)
-    bright_mask = value.point(lambda v: 255 if v >= SETTINGS.ui_tint_min_value else 0)
-
-    colorful = ImageChops.multiply(saturation_mask, bright_mask)
-    palette_error = ImageOps.invert(palette_mask)
-
-    mask = ImageChops.lighter(colorful, palette_error)
-    return mask.filter(ImageFilter.GaussianBlur(radius=1))
-
-
 def composite_regional(src_rgb: Image.Image) -> Image.Image:
     edge_mask, mid_gray_mask, flat_mask, photo_src = build_masks(src_rgb)
-    detail_mask = _detail_mask(edge_mask)
 
     ui_enhanced = enhance_ui(src_rgb)
     sharp = quantize_palette_none(ui_enhanced)
@@ -118,18 +88,11 @@ def composite_regional(src_rgb: Image.Image) -> Image.Image:
         stucki_img = stucki_error_diffusion(photo_base)
         photo = Image.composite(ordered_img, stucki_img, flat_mask)
 
-    # Apply full error-diffusion dithering to colorful regions while preserving
-    # glyphs and separators.
-    color_priority = _color_priority_mask(ui_enhanced, palette_mask)
-    color_priority = ImageChops.multiply(color_priority, ImageOps.invert(detail_mask))
-    color_dither = stucki_error_diffusion(ui_enhanced)
-
     mix1 = Image.composite(halftone, sharp, mid_gray_mask)
     non_edge = ImageOps.invert(edge_mask)
     photo_mask = ImageChops.multiply(non_edge, ImageOps.invert(palette_mask))
     mix2 = Image.composite(photo, mix1, photo_mask)
-    mix3 = Image.composite(color_dither, mix2, color_priority)
-    return Image.composite(sharp, mix3, detail_mask)
+    return Image.composite(sharp, mix2, edge_mask)
 
 
 def build_debug_overlay(src: Image.Image) -> Image.Image:
