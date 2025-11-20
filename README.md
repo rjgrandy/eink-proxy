@@ -65,6 +65,8 @@ Additional environment variables:
 | `PHOTO_VAR_THR` | Variance threshold for detecting textured/photo regions that should bypass UI sharpening. | `1200` |
 | `SKY_GRAD_THR` | Gradient threshold that controls where photo smoothing applies. | `14` |
 | `SMOOTH_STRENGTH` | Strength of edge-aware smoothing in flat areas. | `1` |
+| `MASK_BLUR` | Gaussian blur radius applied to edge and midtone masks. | `2` |
+| `PHOTO_MASK_BLUR` | Blur radius for the photo mask and fine-detail rescue pass. | `1` |
 | `CACHE_TTL` | Seconds to cache the most recent rendered PNG. | `5` |
 | `SOURCE_TIMEOUT` | Seconds to wait for the source request. | `10.0` |
 | `SOURCE_RETRIES` | Number of retries when contacting the source. | `2` |

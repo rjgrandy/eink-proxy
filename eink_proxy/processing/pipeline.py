@@ -60,7 +60,14 @@ def _tinted_flat_regions(ui_rgb: Image.Image, flat_mask: Image.Image) -> Image.I
 
 
 def composite_regional(src_rgb: Image.Image) -> Image.Image:
-    edge_mask, mid_gray_mask, flat_mask, texture_mask, photo_src = build_masks(src_rgb)
+    (
+        edge_mask,
+        mid_gray_mask,
+        flat_mask,
+        texture_mask,
+        fine_detail_mask,
+        photo_src,
+    ) = build_masks(src_rgb)
 
     ui_enhanced = enhance_ui(src_rgb)
     sharp = quantize_palette_none(ui_enhanced)
@@ -90,15 +97,27 @@ def composite_regional(src_rgb: Image.Image) -> Image.Image:
 
     mix1 = Image.composite(halftone, sharp, mid_gray_mask)
     non_edge = ImageOps.invert(edge_mask)
-    photo_mask = ImageChops.multiply(non_edge, ImageOps.invert(palette_mask))
+    palette_inverse = ImageOps.invert(palette_mask)
+    photo_mask = ImageChops.multiply(non_edge, palette_inverse)
     texture_photo_mask = ImageChops.multiply(non_edge, texture_mask)
+    fine_detail_photo_mask = ImageChops.multiply(fine_detail_mask, palette_inverse)
     photo_mask = ImageChops.lighter(photo_mask, texture_photo_mask)
+    photo_mask = ImageChops.lighter(photo_mask, fine_detail_photo_mask)
+    if SETTINGS.photo_mask_blur > 0:
+        photo_mask = photo_mask.filter(ImageFilter.GaussianBlur(SETTINGS.photo_mask_blur))
     mix2 = Image.composite(photo, mix1, photo_mask)
     return Image.composite(sharp, mix2, edge_mask)
 
 
 def build_debug_overlay(src: Image.Image) -> Image.Image:
-    edge_mask, mid_gray_mask, flat_mask, texture_mask, _ = build_masks(src)
+    (
+        edge_mask,
+        mid_gray_mask,
+        flat_mask,
+        texture_mask,
+        fine_detail_mask,
+        _,
+    ) = build_masks(src)
     base = composite_regional(src)
     red = Image.new("RGB", src.size, (255, 0, 0))
     green = Image.new("RGB", src.size, (0, 255, 0))
@@ -109,6 +128,9 @@ def build_debug_overlay(src: Image.Image) -> Image.Image:
     overlay = Image.composite(green, overlay, mid_gray_mask)
     overlay = Image.composite(blue, overlay, flat_mask)
     overlay = Image.composite(magenta, overlay, texture_mask)
+    overlay = Image.composite(
+        Image.new("RGB", src.size, (255, 255, 0)), overlay, fine_detail_mask
+    )
     return overlay
 
 
