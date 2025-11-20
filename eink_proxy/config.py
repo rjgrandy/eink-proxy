@@ -62,13 +62,12 @@ SETTINGS = ProxySettings.from_env()
 
 
 EINK_PALETTE: Tuple[Tuple[int, int, int], ...] = (
-    (0, 0, 0),
-    (255, 255, 255),
-    (255, 0, 0),
-    (255, 255, 0),
-    (0, 255, 0),
-    (0, 0, 255),
-    (255, 165, 0),
+    (0, 0, 0),  # black
+    (255, 255, 255),  # white
+    (255, 0, 0),  # red
+    (0, 255, 0),  # green
+    (0, 0, 255),  # blue
+    (255, 255, 0),  # yellow
 )
 
 
