@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PIL import Image, ImageEnhance, ImageFilter
 
-from ..config import SETTINGS
+from ..config import SETTINGS, ProxySettings
 
 
 def apply_gamma(img: Image.Image, gamma: float) -> Image.Image:
@@ -16,16 +16,16 @@ def apply_gamma(img: Image.Image, gamma: float) -> Image.Image:
     return img.point(lut * 3)
 
 
-def enhance_ui(img: Image.Image) -> Image.Image:
-    img = ImageEnhance.Contrast(img).enhance(SETTINGS.contrast)
-    img = ImageEnhance.Color(img).enhance(SETTINGS.saturation)
-    img = apply_gamma(img, SETTINGS.gamma)
-    img = ImageEnhance.Sharpness(img).enhance(SETTINGS.sharpness_ui)
+def enhance_ui(img: Image.Image, settings: ProxySettings = SETTINGS) -> Image.Image:
+    img = ImageEnhance.Contrast(img).enhance(settings.contrast)
+    img = ImageEnhance.Color(img).enhance(settings.saturation)
+    img = apply_gamma(img, settings.gamma)
+    img = ImageEnhance.Sharpness(img).enhance(settings.sharpness_ui)
     return img.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=2))
 
 
-def enhance_photo(img: Image.Image) -> Image.Image:
-    img = ImageEnhance.Contrast(img).enhance(SETTINGS.contrast)
-    img = ImageEnhance.Color(img).enhance(SETTINGS.saturation)
-    img = apply_gamma(img, SETTINGS.gamma)
+def enhance_photo(img: Image.Image, settings: ProxySettings = SETTINGS) -> Image.Image:
+    img = ImageEnhance.Contrast(img).enhance(settings.contrast)
+    img = ImageEnhance.Color(img).enhance(settings.saturation)
+    img = apply_gamma(img, settings.gamma)
     return img
