@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
 import io
-
 from textwrap import dedent
 
 from flask import Flask, jsonify, request, send_file
@@ -17,28 +17,50 @@ from .processing.pipeline import (
     quantize_palette_fs,
     quantize_palette_none,
 )
-APP_VERSION = "3.0.0"
+
+APP_VERSION = "3.1.0"
 
 
 def create_app() -> Flask:
     configure_logging()
     app = Flask(__name__)
 
+    def get_settings_with_overrides():
+        """Create a copy of SETTINGS with values overridden by query params."""
+        overrides = {}
+        # Integer fields
+        for key in ["edge_threshold", "texture_density_threshold", "sky_gradient_threshold"]:
+            val = request.args.get(key)
+            if val is not None:
+                overrides[key] = int(val)
+        
+        # Float fields
+        for key in ["contrast", "saturation", "gamma", "sharpness_ui"]:
+            val = request.args.get(key)
+            if val is not None:
+                overrides[key] = float(val)
+
+        if not overrides:
+            return SETTINGS
+        return dataclasses.replace(SETTINGS, **overrides)
+
     @app.route("/eink-image")
     def eink_image():
         mode = (request.args.get("dither", "regional") or "regional").lower()
+        settings = get_settings_with_overrides()
+        
         try:
             src = FETCHER.fetch_source()
             if mode == "regional":
-                out = composite_regional(src)
+                out = composite_regional(src, settings=settings)
             elif mode == "true":
-                out = quantize_palette_fs(enhance_photo(src))
+                out = quantize_palette_fs(enhance_photo(src, settings=settings))
             elif mode == "false":
-                out = quantize_palette_none(enhance_ui(src))
+                out = quantize_palette_none(enhance_ui(src, settings=settings))
             else:
-                out = composite_regional(src)
+                out = composite_regional(src, settings=settings)
             return send_png(out)
-        except Exception as exc:  # pragma: no cover - runtime fallback path
+        except Exception as exc:  # pragma: no cover
             cached = last_good_png()
             if cached:
                 return send_file(io.BytesIO(cached), mimetype="image/png")
@@ -48,16 +70,17 @@ def create_app() -> Flask:
     def raw():
         try:
             return send_png(FETCHER.fetch_source())
-        except Exception as exc:  # pragma: no cover - runtime fallback path
+        except Exception as exc:
             return (str(exc), 500)
 
     @app.route("/debug/masks")
     def debug_masks():
+        settings = get_settings_with_overrides()
         try:
             src = FETCHER.fetch_source()
-            overlay = build_debug_overlay(src)
+            overlay = build_debug_overlay(src, settings=settings)
             return send_png(overlay)
-        except Exception as exc:  # pragma: no cover - runtime fallback path
+        except Exception as exc:
             return (f"error: {exc}", 500)
 
     @app.route("/health")
@@ -65,8 +88,6 @@ def create_app() -> Flask:
         return jsonify(
             ok=True,
             photo_mode=SETTINGS.photo_mode,
-            sky_grad_thr=SETTINGS.sky_gradient_threshold,
-            smooth=SETTINGS.smooth_strength,
         )
 
     @app.route("/")
@@ -78,191 +99,282 @@ def create_app() -> Flask:
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
-                <title>E-ink Proxy · Live</title>
+                <title>E-ink Proxy · Config</title>
                 <style>
                   :root {{
-                    color-scheme: light dark;
                     --bg-gradient: radial-gradient(circle at 5% 10%, #fceabb, transparent 55%),
                                      radial-gradient(circle at 90% 15%, #f8b50055, transparent 45%),
                                      linear-gradient(135deg, #1f1c2c 0%, #928dab 100%);
                     --card-bg: rgba(255, 255, 255, 0.12);
-                    --border-glow: rgba(255, 255, 255, 0.35);
-                    --text-primary: #fff;
-                    --text-secondary: rgba(255, 255, 255, 0.75);
                     --accent: #ffd166;
-                    font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                    --text: #fff;
+                    --border: rgba(255, 255, 255, 0.2);
                   }}
 
                   body {{
                     margin: 0;
-                    min-height: 100vh;
                     background: var(--bg-gradient);
-                    color: var(--text-primary);
+                    color: var(--text);
+                    font-family: system-ui, sans-serif;
                     display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 48px 18px;
-                  }}
-
-                  .page {{
-                    width: min(900px, 100%);
-                    text-align: center;
-                  }}
-
-                  h1 {{
-                    font-size: 2.5rem;
-                    margin-bottom: 24px;
-                    text-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                  }}
-
-                  .preview-container {{
-                    position: relative;
-                    width: 100%;
-                    border-radius: 16px;
+                    height: 100vh;
                     overflow: hidden;
-                    box-shadow: 0 30px 60px rgba(0,0,0,0.45);
-                    border: 2px solid var(--border-glow);
-                    background: #000;
-                    margin-bottom: 32px;
+                  }}
+
+                  /* Sidebar */
+                  .sidebar {{
+                    width: 300px;
+                    background: rgba(0,0,0,0.3);
+                    backdrop-filter: blur(10px);
+                    border-right: 1px solid var(--border);
+                    padding: 20px;
+                    overflow-y: auto;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 20px;
+                  }}
+
+                  .control-group {{
+                    background: rgba(255,255,255,0.05);
+                    padding: 15px;
+                    border-radius: 12px;
                   }}
                   
-                  .preview-img {{
-                    display: block;
-                    width: 100%;
-                    height: auto;
-                    image-rendering: pixelated;
+                  .control-group h3 {{ margin: 0 0 10px 0; font-size: 0.9rem; text-transform: uppercase; opacity: 0.7; }}
+
+                  label {{ display: block; font-size: 0.85rem; margin-bottom: 4px; display: flex; justify-content: space-between; }}
+                  input[type=range] {{ width: 100%; margin-bottom: 12px; }}
+
+                  /* Main Preview Area */
+                  .main {{
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    position: relative;
+                    padding: 20px;
                   }}
 
-                  .controls {{
+                  .toolbar {{
                     display: flex;
+                    gap: 10px;
                     justify-content: center;
-                    flex-wrap: wrap;
-                    gap: 12px;
-                    margin-bottom: 24px;
+                    margin-bottom: 20px;
                   }}
 
                   .btn {{
-                    background: rgba(255, 255, 255, 0.1);
-                    border: 1px solid rgba(255, 255, 255, 0.2);
-                    color: var(--text-primary);
-                    padding: 12px 24px;
-                    border-radius: 999px;
+                    background: rgba(255,255,255,0.1);
+                    border: 1px solid var(--border);
+                    color: white;
+                    padding: 10px 20px;
+                    border-radius: 20px;
                     cursor: pointer;
-                    font-weight: 600;
-                    font-size: 1rem;
-                    transition: all 0.2s ease;
-                    backdrop-filter: blur(4px);
+                    transition: all 0.2s;
                   }}
                   
-                  .btn:hover {{
-                    background: rgba(255, 255, 255, 0.2);
-                    transform: translateY(-2px);
+                  .btn:hover {{ background: rgba(255,255,255,0.2); }}
+                  .btn.active {{ background: var(--accent); color: black; border-color: var(--accent); }}
+
+                  /* Image Container */
+                  .viewport {{
+                    flex: 1;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 20px;
+                    overflow: auto;
                   }}
 
-                  .btn.active {{
-                    background: var(--accent);
-                    color: #1f1c2c;
-                    border-color: var(--accent);
-                    box-shadow: 0 0 20px rgba(255, 209, 102, 0.4);
+                  .img-card {{
+                    position: relative;
+                    border: 2px solid var(--border);
+                    border-radius: 8px;
+                    overflow: hidden;
+                    background: black;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+                  }}
+
+                  .img-card img {{
+                    display: block;
+                    max-width: 100%;
+                    max-height: 80vh;
+                    image-rendering: pixelated;
+                    opacity: 1;
+                    transition: opacity 0.2s;
                   }}
                   
-                  .status-bar {{
-                    color: var(--text-secondary);
-                    font-size: 0.9rem;
-                    background: rgba(0,0,0,0.3);
-                    padding: 8px 16px;
-                    border-radius: 999px;
-                    display: inline-block;
+                  .img-card.loading img {{ opacity: 0.5; }}
+                  .img-card.loading::after {{
+                    content: "Loading...";
+                    position: absolute;
+                    top: 50%; left: 50%;
+                    transform: translate(-50%, -50%);
+                    font-weight: bold;
+                    text-shadow: 0 2px 4px black;
+                  }}
+
+                  .img-label {{
+                    position: absolute;
+                    bottom: 0; left: 0; right: 0;
+                    background: rgba(0,0,0,0.7);
+                    padding: 8px;
+                    text-align: center;
+                    font-size: 0.8rem;
                     backdrop-filter: blur(4px);
                   }}
                   
-                  .links {{
-                    margin-top: 32px;
-                    display: flex;
-                    justify-content: center;
-                    gap: 24px;
+                  /* Grid Mode */
+                  .viewport.grid .img-card {{
+                    flex: 1;
+                    min-width: 300px;
                   }}
-                  
-                  .links a {{
-                    color: var(--text-secondary);
-                    text-decoration: none;
-                    font-size: 0.9rem;
-                  }}
-                  
-                  .links a:hover {{
-                    color: var(--accent);
-                    text-decoration: underline;
-                  }}
+
                 </style>
             </head>
             <body>
-                <main class="page">
-                    <h1>E-ink Proxy Dashboard</h1>
+                <aside class="sidebar">
+                    <h2>Config</h2>
                     
-                    <div class="controls">
-                        <button class="btn active" onclick="setMode('regional')">Hybrid (Regional)</button>
-                        <button class="btn" onclick="setMode('true')">Photo (Dithered)</button>
-                        <button class="btn" onclick="setMode('false')">UI (Crisp)</button>
-                        <button class="btn" onmousedown="toggleRaw(true)" onmouseup="toggleRaw(false)" onmouseleave="toggleRaw(false)">Hold for Raw</button>
-                        <button class="btn" onclick="window.open('/debug/masks', '_blank')">Debug Masks</button>
+                    <div class="control-group">
+                        <h3>Processing</h3>
+                        <label>Contrast <span id="val-contrast">{SETTINGS.contrast}</span></label>
+                        <input type="range" id="contrast" min="0.5" max="2.0" step="0.05" value="{SETTINGS.contrast}">
+                        
+                        <label>Saturation <span id="val-saturation">{SETTINGS.saturation}</span></label>
+                        <input type="range" id="saturation" min="0.0" max="3.0" step="0.1" value="{SETTINGS.saturation}">
+
+                        <label>Gamma <span id="val-gamma">{SETTINGS.gamma}</span></label>
+                        <input type="range" id="gamma" min="0.5" max="1.5" step="0.05" value="{SETTINGS.gamma}">
+                        
+                        <label>Sharpness <span id="val-sharpness">{SETTINGS.sharpness_ui}</span></label>
+                        <input type="range" id="sharpness" min="0.0" max="4.0" step="0.1" value="{SETTINGS.sharpness_ui}">
                     </div>
 
-                    <div class="preview-container">
-                        <img id="monitor" src="/eink-image?dither=regional" class="preview-img" alt="Dashboard Preview" />
+                    <div class="control-group">
+                        <h3>Detection</h3>
+                        <label>Edge Threshold <span id="val-edge">{SETTINGS.edge_threshold}</span></label>
+                        <input type="range" id="edge" min="10" max="100" step="1" value="{SETTINGS.edge_threshold}">
+                        
+                        <label>Texture Density <span id="val-texture">{SETTINGS.texture_density_threshold}</span></label>
+                        <input type="range" id="texture" min="1" max="50" step="1" value="{SETTINGS.texture_density_threshold}">
                     </div>
                     
-                    <div class="status-bar">
-                        Auto-refreshing (5s) · <span id="timestamp">Waiting for update...</span>
+                    <button class="btn" onclick="resetSettings()">Reset Defaults</button>
+                </aside>
+
+                <main class="main">
+                    <div class="toolbar">
+                        <button class="btn active" id="btn-regional" onclick="setMode('regional')">Hybrid</button>
+                        <button class="btn" id="btn-true" onclick="setMode('true')">Photo</button>
+                        <button class="btn" id="btn-false" onclick="setMode('false')">UI Only</button>
+                        <button class="btn" id="btn-gallery" onclick="toggleGallery()">Show All</button>
                     </div>
-                    
-                    <div class="links">
-                       <span>v{APP_VERSION}</span>
-                       <a href="/health" target="_blank">Health Check</a>
-                       <a href="https://github.com/rjgrandy/eink-proxy" target="_blank">GitHub</a>
-                    </div>
+
+                    <div class="viewport" id="viewport">
+                        </div>
                 </main>
 
                 <script>
-                    const img = document.getElementById('monitor');
-                    const ts = document.getElementById('timestamp');
-                    let currentMode = 'regional';
-                    let isRaw = false;
-                    let refreshTimer = null;
+                    const state = {{
+                        mode: 'regional',
+                        gallery: false,
+                        params: {{
+                            contrast: {SETTINGS.contrast},
+                            saturation: {SETTINGS.saturation},
+                            gamma: {SETTINGS.gamma},
+                            sharpness_ui: {SETTINGS.sharpness_ui},
+                            edge_threshold: {SETTINGS.edge_threshold},
+                            texture_density_threshold: {SETTINGS.texture_density_threshold}
+                        }}
+                    }};
 
-                    function refreshImage() {{
-                        if (isRaw) return;
-                        const t = new Date().getTime();
-                        const newSrc = `/eink-image?dither=${{currentMode}}&t=${{t}}`;
+                    function getUrl(mode) {{
+                        const p = new URLSearchParams(state.params);
+                        p.set('dither', mode);
+                        p.set('t', Date.now()); // busting cache
+                        return `/eink-image?${{p.toString()}}`;
+                    }}
+
+                    function createImageCard(mode, label) {{
+                        const div = document.createElement('div');
+                        div.className = 'img-card loading';
                         
-                        // Preload to prevent flashing
-                        const tempImg = new Image();
-                        tempImg.onload = () => {{
-                           img.src = newSrc;
-                           ts.textContent = `Updated: ${{new Date().toLocaleTimeString()}}`;
-                        }};
-                        tempImg.src = newSrc;
+                        const img = document.createElement('img');
+                        img.onload = () => div.classList.remove('loading');
+                        img.src = getUrl(mode);
+                        
+                        const lbl = document.createElement('div');
+                        lbl.className = 'img-label';
+                        lbl.textContent = label;
+
+                        div.appendChild(img);
+                        div.appendChild(lbl);
+                        return div;
                     }}
 
-                    function setMode(mode) {{
-                        currentMode = mode;
-                        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
-                        // Note: we can't easily find the exact button without ID, but this is fine for now
-                        event.target.classList.add('active');
-                        refreshImage();
-                    }}
-
-                    function toggleRaw(active) {{
-                        isRaw = active;
-                        if (isRaw) {{
-                            img.src = `/raw?t=${{new Date().getTime()}}`;
-                            ts.textContent = 'Showing RAW Source';
+                    function render() {{
+                        const vp = document.getElementById('viewport');
+                        vp.innerHTML = '';
+                        
+                        if (state.gallery) {{
+                            vp.classList.add('grid');
+                            vp.appendChild(createImageCard('regional', 'Hybrid'));
+                            vp.appendChild(createImageCard('true', 'Photo'));
+                            vp.appendChild(createImageCard('false', 'UI Only'));
                         }} else {{
-                            refreshImage();
+                            vp.classList.remove('grid');
+                            vp.appendChild(createImageCard(state.mode, state.mode.toUpperCase()));
+                        }}
+
+                        // Update Buttons
+                        document.querySelectorAll('.toolbar .btn').forEach(b => b.classList.remove('active'));
+                        if (state.gallery) {{
+                            document.getElementById('btn-gallery').classList.add('active');
+                        }} else {{
+                            document.getElementById('btn-' + state.mode).classList.add('active');
                         }}
                     }}
 
-                    refreshImage();
-                    setInterval(refreshImage, 5000);
+                    function setMode(m) {{
+                        state.mode = m;
+                        state.gallery = false;
+                        render();
+                    }}
+
+                    function toggleGallery() {{
+                        state.gallery = !state.gallery;
+                        render();
+                    }}
+
+                    // Settings Logic
+                    const inputs = {{
+                        contrast: document.getElementById('contrast'),
+                        saturation: document.getElementById('saturation'),
+                        gamma: document.getElementById('gamma'),
+                        sharpness_ui: document.getElementById('sharpness'),
+                        edge_threshold: document.getElementById('edge'),
+                        texture_density_threshold: document.getElementById('texture'),
+                    }};
+
+                    function updateParams() {{
+                        for (const key in inputs) {{
+                            state.params[key] = inputs[key].value;
+                            // Update label
+                            const labelSpan = document.getElementById('val-' + key.replace('_threshold', '').replace('_ui', ''));
+                            if(labelSpan) labelSpan.textContent = inputs[key].value;
+                        }}
+                        render();
+                    }}
+
+                    for (const key in inputs) {{
+                        inputs[key].addEventListener('change', updateParams); // 'input' for live dragging, 'change' for drop
+                    }}
+
+                    function resetSettings() {{
+                        location.reload();
+                    }}
+
+                    // Initial render
+                    render();
                 </script>
             </body>
             </html>
