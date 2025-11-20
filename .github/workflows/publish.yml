@@ -5,6 +5,10 @@
         branches:
           - main # Trigger on pushes to the main branch
           - dev
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
           
     jobs:
       build-and-push-image:

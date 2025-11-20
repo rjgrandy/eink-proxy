@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the E-ink 7-color image proxy application."""
+"""Application entrypoint. Run to start the E-ink 7-color image proxy."""
 
 from eink_proxy.__main__ import app, main
 
