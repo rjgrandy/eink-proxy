@@ -1,8 +1,7 @@
 # eink-proxy
 
 A tiny Flask application that proxies an existing dashboard or snapshot feed and remaps
-it into the six-colour Spectra 6 palette (black, white, red, green, blue, yellow) used by
-Waveshare-style E-ink panels. The container
+it into the seven-colour palette supported by Waveshare-style E-ink panels. The container
 is designed to run as a sidecar to Home Assistant or any other service that can provide a
 static PNG/JPEG snapshot.
 
