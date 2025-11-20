@@ -63,17 +63,17 @@ class ProxySettings:
 SETTINGS = ProxySettings.from_env()
 
 
+# SPECTRA 6 PALETTE (No Orange)
 EINK_PALETTE: Tuple[Tuple[int, int, int], ...] = (
-    (0, 0, 0),
-    (255, 255, 255),
-    (255, 0, 0),
-    (255, 255, 0),
-    (0, 255, 0),
-    (0, 0, 255),
-    (255, 165, 0),
+    (0, 0, 0),       # 0: Black
+    (255, 255, 255), # 1: White
+    (255, 0, 0),     # 2: Red
+    (255, 255, 0),   # 3: Yellow
+    (0, 255, 0),     # 4: Green
+    (0, 0, 255),     # 5: Blue
 )
 
 
 def configure_logging() -> logging.Logger:
     logging.basicConfig(level=SETTINGS.log_level)
-    return logging.getLogger("eink-proxy-v2.7")
+    return logging.getLogger("eink-proxy-v3.1")
