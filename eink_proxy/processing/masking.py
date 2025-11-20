@@ -9,7 +9,7 @@ from ..config import SETTINGS
 
 def threshold_channel(channel: Image.Image, threshold: int, invert: bool = False) -> Image.Image:
     lut = [255 if value >= threshold else 0 for value in range(256)]
-    mask = channel.point(lut)
+    mask = channel.convert("L").point(lut)
     if invert:
         mask = ImageOps.invert(mask)
     return mask
@@ -31,9 +31,11 @@ def build_masks(
     edge_mask = edges.point(lambda p: 255 if p >= SETTINGS.edge_threshold else 0).filter(
         ImageFilter.GaussianBlur(SETTINGS.mask_blur)
     )
+    edge_mask = edge_mask.convert("L")
 
     fine_detail = edges.point(lambda p: 255 if p >= SETTINGS.edge_threshold else 0)
     fine_detail = fine_detail.filter(ImageFilter.MaxFilter(3))
+    fine_detail = fine_detail.convert("L")
     if SETTINGS.photo_mask_blur > 0:
         fine_detail = fine_detail.filter(ImageFilter.GaussianBlur(SETTINGS.photo_mask_blur))
 
@@ -44,9 +46,11 @@ def build_masks(
     mid_gray_mask = ImageChops.multiply(mid_l, low_sat).filter(
         ImageFilter.GaussianBlur(SETTINGS.mask_blur)
     )
+    mid_gray_mask = mid_gray_mask.convert("L")
 
     grad = edges.filter(ImageFilter.GaussianBlur(1))
     flat = grad.point(lambda p: 255 if p < SETTINGS.sky_gradient_threshold else 0)
+    flat = flat.convert("L")
 
     gray_f = gray.convert("F")
     mean = gray_f.filter(ImageFilter.BoxBlur(2))
@@ -58,6 +62,7 @@ def build_masks(
         lambda v: 255 if v >= SETTINGS.texture_variance_threshold else 0
     ).convert("L")
     texture_mask = texture_mask.filter(ImageFilter.GaussianBlur(SETTINGS.mask_blur))
+    texture_mask = texture_mask.convert("L")
 
     if SETTINGS.smooth_strength > 0:
         kernel = 3 if SETTINGS.smooth_strength == 1 else 5
