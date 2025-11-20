@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
 from ..config import SETTINGS, ProxySettings
 
@@ -25,15 +25,12 @@ def darken_lines(img: Image.Image) -> Image.Image:
     gray = ImageOps.invert(img.convert("L"))
     
     # "Dilate" expands white areas (which are our dark lines)
-    # A 3x3 MaxFilter is a slight dilation
     thickened = gray.filter(ImageFilter.MaxFilter(3))
     
     # Invert back. Now lines are thicker/darker.
     thickened = ImageOps.invert(thickened)
     
-    # We only want to apply this to things that were already somewhat dark.
     # Blend it back into the original RGB image using the darkened version as the luminance target.
-    # Ideally, we just multiply or composite. Simple multiply works well to darken.
     thickened_rgb = thickened.convert("RGB")
     return ImageChops.multiply(img, thickened_rgb)
 
