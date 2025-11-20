@@ -61,6 +61,9 @@ class ProxySettings:
 SETTINGS = ProxySettings.from_env()
 
 
+# Spectra 6 panels expose six pigments: black, white, red, yellow, green,
+# and blue. The palette order keeps the neutral inks first for quick
+# selection in palette-aware masking logic.
 EINK_PALETTE: Tuple[Tuple[int, int, int], ...] = (
     (0, 0, 0),
     (255, 255, 255),
@@ -68,7 +71,6 @@ EINK_PALETTE: Tuple[Tuple[int, int, int], ...] = (
     (255, 255, 0),
     (0, 255, 0),
     (0, 0, 255),
-    (255, 165, 0),
 )
 
 
