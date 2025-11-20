@@ -23,11 +23,12 @@ class SourceFetcher:
         session.headers.update({"User-Agent": "eink-proxy/2.7"})
         return session
 
-    def fetch_source(self) -> Image.Image:
+    def fetch_source(self, source_url: str | None = None) -> Image.Image:
         last_exception: Exception | None = None
+        url = source_url or SETTINGS.source_url
         for attempt in range(1, SETTINGS.retries + 2):
             try:
-                response = self._session.get(SETTINGS.source_url, timeout=SETTINGS.timeout)
+                response = self._session.get(url, timeout=SETTINGS.timeout)
                 response.raise_for_status()
                 return Image.open(io.BytesIO(response.content)).convert("RGB")
             except Exception as exc:  # pragma: no cover - network failures handled at runtime

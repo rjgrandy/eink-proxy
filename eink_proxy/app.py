@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 
 from textwrap import dedent
+from typing import Mapping
+from urllib.parse import urljoin
 
 from flask import Flask, jsonify, request, send_file
 
@@ -20,6 +22,26 @@ from .processing.pipeline import (
 APP_VERSION = "3.0.0"
 
 
+def resolve_source_url(args: Mapping[str, str]) -> str:
+    """Resolve the upstream image URL from query args or fall back to settings."""
+
+    explicit = (args.get("source_url") or args.get("source") or "").strip()
+    if explicit:
+        return explicit
+
+    base = (args.get("source_base") or "").strip()
+    path = (args.get("source_path") or "").strip()
+
+    if base:
+        normalized_base = base if base.endswith("/") else f"{base}/"
+        normalized_path = path.lstrip("/")
+        if normalized_path:
+            return urljoin(normalized_base, normalized_path)
+        return normalized_base.rstrip("/")
+
+    return SETTINGS.source_url
+
+
 def create_app() -> Flask:
     configure_logging()
     app = Flask(__name__)
@@ -27,8 +49,9 @@ def create_app() -> Flask:
     @app.route("/eink-image")
     def eink_image():
         mode = (request.args.get("dither", "regional") or "regional").lower()
+        source_url = resolve_source_url(request.args)
         try:
-            src = FETCHER.fetch_source()
+            src = FETCHER.fetch_source(source_url)
             if mode == "regional":
                 out = composite_regional(src)
             elif mode == "true":
@@ -47,14 +70,14 @@ def create_app() -> Flask:
     @app.route("/raw")
     def raw():
         try:
-            return send_png(FETCHER.fetch_source())
+            return send_png(FETCHER.fetch_source(resolve_source_url(request.args)))
         except Exception as exc:  # pragma: no cover - runtime fallback path
             return (str(exc), 500)
 
     @app.route("/debug/masks")
     def debug_masks():
         try:
-            src = FETCHER.fetch_source()
+            src = FETCHER.fetch_source(resolve_source_url(request.args))
             overlay = build_debug_overlay(src)
             return send_png(overlay)
         except Exception as exc:  # pragma: no cover - runtime fallback path

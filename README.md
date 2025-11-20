@@ -81,3 +81,10 @@ See the top of `eink_proxy.py` for the full list of tunables.
 - `/health` – Readiness/liveness information.
 - `/raw` – Returns the upstream image without processing.
 - `/debug/masks` – Visualises the mask used to decide between UI and photo processing paths.
+
+Override the upstream source per-request by passing `source_url=<full URL>` or the
+combination of `source_base` and `source_path`, for example:
+
+```
+/eink-image?dither=true&source_base=http://192.168.1.199:10000&source_path=lovelace-main/immichss
+```
