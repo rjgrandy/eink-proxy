@@ -4,7 +4,7 @@ from typing import Tuple
 
 from PIL import Image
 
-from ..config import EINK_PALETTE, SETTINGS
+from ..config import EINK_PALETTE, SETTINGS, ProxySettings
 
 
 def palette_image() -> Image.Image:
@@ -27,14 +27,9 @@ def _is_neutral(rgb: Tuple[int, int, int]) -> bool:
 
 def _nearest_bw(rgb: Tuple[int, int, int]) -> int:
     r, g, b = rgb
-    # Choose the ink that keeps neutral UI elements visible. Thin gridlines and
-    # separators are typically drawn as medium grays; map those to black so they
-    # remain legible, while still allowing very light grays to stay white.
+    # Fix for faint graph lines: threshold increased to 235
     luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-    return 0 if luminance <= 200 else 1
-    black_distance = rgb[0] ** 2 + rgb[1] ** 2 + rgb[2] ** 2
-    white_distance = (255 - rgb[0]) ** 2 + (255 - rgb[1]) ** 2 + (255 - rgb[2]) ** 2
-    return 0 if black_distance < white_distance else 1
+    return 0 if luminance <= 235 else 1
 
 
 def nearest_palette_index(rgb: Tuple[int, int, int]) -> int:
@@ -83,16 +78,10 @@ def mix_ratio(rgb: Tuple[int, int, int], color_a_index: int, color_b_index: int)
     return alpha
 
 
-def palette_fit_mask(src: Image.Image, quantized: Image.Image, threshold: int | None = None) -> Image.Image:
-    """Return a mask highlighting pixels that closely match their quantized color.
+def palette_fit_mask(src: Image.Image, quantized: Image.Image, settings: ProxySettings = SETTINGS) -> Image.Image:
+    """Return a mask highlighting pixels that closely match their quantized color."""
 
-    Pixels whose squared Euclidean distance between the source and quantized
-    colors is below ``threshold`` are marked as 255 in the returned ``L`` mode
-    mask. These regions represent areas where the source already aligns well
-    with the hardware palette and therefore benefit from direct color mapping.
-    """
-
-    distance_threshold = SETTINGS.ui_palette_threshold if threshold is None else threshold
+    distance_threshold = settings.ui_palette_threshold
     src_rgb = src.convert("RGB")
     quant_rgb = quantized.convert("RGB")
     width, height = src_rgb.size
