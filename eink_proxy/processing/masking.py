@@ -23,8 +23,22 @@ def bandpass_mask_luma(luma: Image.Image, lo: int, hi: int) -> Image.Image:
 
 def build_masks(src_rgb: Image.Image) -> Tuple[Image.Image, Image.Image, Image.Image, Image.Image]:
     gray = src_rgb.convert("L")
+    
+    # 1. Edge Detection
     edges = gray.filter(ImageFilter.FIND_EDGES)
-    edge_mask = edges.point(lambda p: 255 if p >= SETTINGS.edge_threshold else 0).filter(
+
+    # 2. Texture Density Calculation
+    # Calculate local edge density to identify complex textures (photos/images)
+    edge_density = edges.filter(ImageFilter.BoxBlur(4))
+    texture_mask = edge_density.point(lambda p: 255 if p > SETTINGS.texture_density_threshold else 0)
+    texture_mask = texture_mask.filter(ImageFilter.MaxFilter(3))  # Expand slightly to cover edges
+
+    # 3. Refine Edge Mask (UI Lines)
+    strong_edges = edges.point(lambda p: 255 if p >= SETTINGS.edge_threshold else 0)
+    # Subtract texture regions from the edge mask so they fall through to the dither path
+    clean_edges = ImageChops.subtract(strong_edges, texture_mask)
+    
+    edge_mask = clean_edges.filter(
         ImageFilter.GaussianBlur(SETTINGS.mask_blur)
     )
 
@@ -32,7 +46,11 @@ def build_masks(src_rgb: Image.Image) -> Tuple[Image.Image, Image.Image, Image.I
     _, saturation, value = hsv.split()
     mid_l = bandpass_mask_luma(value, SETTINGS.mid_l_min, SETTINGS.mid_l_max)
     low_sat = threshold_channel(saturation, SETTINGS.mid_s_max, invert=True)
-    mid_gray_mask = ImageChops.multiply(mid_l, low_sat).filter(
+    
+    # 4. Refine Mid-tone Mask
+    mid_gray_mask_base = ImageChops.multiply(mid_l, low_sat)
+    # Ensure mid-tones inside photos don't get flattened
+    mid_gray_mask = ImageChops.subtract(mid_gray_mask_base, texture_mask).filter(
         ImageFilter.GaussianBlur(SETTINGS.mask_blur)
     )
 
