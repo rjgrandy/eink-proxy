@@ -370,6 +370,10 @@ def create_app() -> Flask:
     
         controls_html = "".join(render_field(field) for field in control_fields)
     
+        class SafeDict(dict):
+            def __missing__(self, key):  # pragma: no cover - passthrough
+                return "{" + key + "}"
+
         return dedent(
             """
         <!DOCTYPE html>
@@ -457,12 +461,14 @@ def create_app() -> Flask:
               const refreshComparison = () => {                const leftEndpoint = leftSelect.value;                const rightEndpoint = rightSelect.value;                leftLabel.textContent = leftEndpoint;                rightLabel.textContent = rightEndpoint;                leftImage.src = bust(leftEndpoint);                rightImage.src = bust(rightEndpoint);              };
               document.getElementById('refresh-btn').addEventListener('click', refreshComparison);              document.getElementById('swap-btn').addEventListener('click', () => {                const left = leftSelect.value;                leftSelect.value = rightSelect.value;                rightSelect.value = left;                refreshComparison();              });
               refreshComparison();            </script>          </body>        </html>            """
-        ).format(
-            APP_VERSION=APP_VERSION,
-            SETTINGS=SETTINGS,
-            endpoint_cards=endpoint_cards,
-            controls_html=controls_html,
-            comparison_options=comparison_options,
+        ).format_map(
+            SafeDict(
+                APP_VERSION=APP_VERSION,
+                SETTINGS=SETTINGS,
+                endpoint_cards=endpoint_cards,
+                controls_html=controls_html,
+                comparison_options=comparison_options,
+            )
         )
     
     return app
