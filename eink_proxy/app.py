@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import io
+from pathlib import Path
+from string import Template
 from dataclasses import asdict, fields
 from html import escape
-from textwrap import dedent
 
 from flask import Flask, jsonify, request, send_file
 
@@ -19,7 +20,7 @@ from .processing.pipeline import (
     quantize_palette_none,
 )
 
-APP_VERSION = "3.1.2-robust"
+APP_VERSION = "3.1.3-template"
 
 
 def create_app() -> Flask:
@@ -415,14 +416,26 @@ def create_app() -> Flask:
             f'<option value="{href}">{escape(name)}</option>' for name, href, *_ in endpoints
         )
 
-        template = dedent(
-            """
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>E-ink Proxy Studio</title>
-                <style>
-                    :root {
-                        --bg-
+        # Load the template file
+        template_path = Path(__file__).parent / "templates" / "index.html"
+        try:
+            with open(template_path, "r", encoding="utf-8") as f:
+                tmpl_str = f.read()
+        except Exception as e:
+            return f"Error loading template: {e}", 500
+
+        # Substitute using string.Template (safe for HTML/CSS braces)
+        return Template(tmpl_str).substitute(
+            APP_VERSION=APP_VERSION,
+            controls_html=controls_html,
+            endpoint_cards=endpoint_cards,
+            comparison_options=comparison_options,
+        )
+
+    return app
+
+
+# Expose a module-level Flask application for Gunicorn import paths like ``eink_proxy.app:app``
+# and provide a conventional ``application`` alias for WSGI servers that default to that name.
+app = create_app()
+application = app
