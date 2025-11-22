@@ -286,7 +286,8 @@
         const toast = document.getElementById('toast');
 
         // Utils
-        const bust = (u) => `${u}${u.includes('?') ? '&' : '?'}ts=${Date.now()}`;
+        // FIX: Doubled $$ signs so Python string.Template ignores them
+        const bust = (u) => `$${u}$${u.includes('?') ? '&' : '?'}ts=$${Date.now()}`;
         const showToast = (msg, isError=false) => {
             toast.textContent = msg;
             if(isError) toast.classList.add('error'); else toast.classList.remove('error');
@@ -328,7 +329,8 @@
                     body: JSON.stringify({ [field]: value }),
                 });
                 if(res.ok) {
-                    showToast(`Saved ${field}`);
+                    // FIX: Doubled $$ signs
+                    showToast(`Saved $${field}`);
                     updatePreview(); // Auto refresh on change
                 } else {
                     showToast("Failed to save setting", true);
@@ -344,7 +346,8 @@
             const target = e.target;
             // Sync slider <-> number
             if (target.dataset.sync) {
-                const sibling = settingsForm.querySelector(`[data-field="${target.dataset.sync}"].slider-num`);
+                // FIX: Doubled $$ signs
+                const sibling = settingsForm.querySelector(`[data-field="$${target.dataset.sync}"].slider-num`);
                 if(sibling) sibling.value = target.value;
             }
             if (target.type === 'range') {
