@@ -374,7 +374,7 @@ def create_app() -> Flask:
             def __missing__(self, key):  # pragma: no cover - passthrough
                 return "{" + key + "}"
 
-        return dedent(
+        template = dedent(
             """
         <!DOCTYPE html>
         <html lang="en">          <head>            <meta charset="utf-8" />            <meta name="viewport" content="width=device-width, initial-scale=1" />            <title>E-ink Proxy · v{APP_VERSION}</title>            <style>              :root {{                color-scheme: light dark;                --bg: radial-gradient(circle at 12% 20%, #23364d, transparent 35%),                         radial-gradient(circle at 90% 10%, #3c2d4e, transparent 30%),                         linear-gradient(140deg, #0b1022 0%, #111a2f 52%, #1f2e4d 100%);                --panel: rgba(255, 255, 255, 0.08);                --panel-strong: rgba(255, 255, 255, 0.12);                --border: rgba(255, 255, 255, 0.16);                --text: #f4f6fb;                --muted: #9fb0d1;                --accent: #8be9c7;                --accent-2: #7aa2f7;                --shadow: 0 25px 55px rgba(5, 12, 32, 0.55);                font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;              }}
@@ -440,7 +440,7 @@ def create_app() -> Flask:
     
               @media (max-width: 860px) {                .hero {                  grid-template-columns: 1fr;                }
               }
-            </style>          </head>          <body>            <main class="page">              <section class="shell" aria-label="Hero">                <div class="hero">                  <div>                    <span class="version-pill">Version v{APP_VERSION}</span>                    <h1>7-Color E-ink Control Room</h1>                    <p class="lede">Refined controls, live previews, and comparison views for every endpoint in your proxy.</p>                    <div class="cta-row">                      <a class="btn primary" href="/eink-image?dither=regional">View hybrid output</a>                      <a class="btn ghost" href="/raw">Download raw PNG</a>                      <span class="chip">Source: <code id="source-url">{escape(SETTINGS.source_url)}</code></span>                    </div>                  </div>                  <div class="source-card">                    <div class="control-top">                      <span>Live knobs</span>                      <span class="pill">Instant apply</span>                    </div>                    <p class="lede" style="margin-top:8px;">Adjust any setting and the pipeline will consume it immediately—no reload required.</p>                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:10px;">                      <div class="chip">Mode: <strong id="summary-photo-mode">{SETTINGS.photo_mode}</strong></div>                      <div class="chip">Sky thr: <strong id="summary-sky">{SETTINGS.sky_gradient_threshold}</strong></div>                      <div class="chip">Smooth: <strong id="summary-smooth">{SETTINGS.smooth_strength}</strong></div>                      <div class="chip">Cache TTL: <strong id="summary-cache">{SETTINGS.cache_ttl}</strong>s</div>                    </div>                  </div>                </div>              </section>
+            </style>          </head>          <body>            <main class="page">              <section class="shell" aria-label="Hero">                <div class="hero">                  <div>                    <span class="version-pill">Version v{APP_VERSION}</span>                    <h1>7-Color E-ink Control Room</h1>                    <p class="lede">Refined controls, live previews, and comparison views for every endpoint in your proxy.</p>                    <div class="cta-row">                      <a class="btn primary" href="/eink-image?dither=regional">View hybrid output</a>                      <a class="btn ghost" href="/raw">Download raw PNG</a>                      <span class="chip">Source: <code id="source-url">{source_url}</code></span>                    </div>                  </div>                  <div class="source-card">                    <div class="control-top">                      <span>Live knobs</span>                      <span class="pill">Instant apply</span>                    </div>                    <p class="lede" style="margin-top:8px;">Adjust any setting and the pipeline will consume it immediately—no reload required.</p>                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:10px;">                      <div class="chip">Mode: <strong id="summary-photo-mode">{SETTINGS.photo_mode}</strong></div>                      <div class="chip">Sky thr: <strong id="summary-sky">{SETTINGS.sky_gradient_threshold}</strong></div>                      <div class="chip">Smooth: <strong id="summary-smooth">{SETTINGS.smooth_strength}</strong></div>                      <div class="chip">Cache TTL: <strong id="summary-cache">{SETTINGS.cache_ttl}</strong>s</div>                    </div>                  </div>                </div>              </section>
               <section class="shell" aria-label="Endpoints">                <div class="control-top" style="margin-bottom:12px;">                  <div>                    <h2 style="margin:0;">Endpoint explorer</h2>                    <p class="lede">Click preview to render inline, or open the raw responses in a new tab.</p>                  </div>                  <span class="pill">Clickable &amp; copyable</span>                </div>                <div class="grid">                  {endpoint_cards}                </div>              </section>
               <section class="shell" aria-label="Comparison">                <div class="control-top" style="margin-bottom:12px;">                  <div>                    <h2 style="margin:0;">Comparison lab</h2>                    <p class="lede">Pick two endpoints and refresh to review them side-by-side.</p>                  </div>                  <div class="cta-row">                    <button class="btn ghost" id="swap-btn">Swap</button>                    <button class="btn primary" id="refresh-btn">Refresh comparison</button>                  </div>                </div>                <div class="compare-grid">                  <label class="control-field">                    <div class="control-top"><span>Left endpoint</span></div>                    <select class="control-input" id="left-select">{comparison_options}</select>                  </label>                  <label class="control-field">                    <div class="control-top"><span>Right endpoint</span></div>                    <select class="control-input" id="right-select">{comparison_options}</select>                  </label>                </div>                <div class="compare-grid" style="margin-top:12px;">                  <figure class="preview-card">                    <div class="preview-header"><span class="pill" id="left-label"></span></div>                    <div class="preview-stage"><img id="left-image" alt="Left endpoint preview" loading="lazy" /></div>                  </figure>                  <figure class="preview-card">                    <div class="preview-header"><span class="pill" id="right-label"></span></div>                    <div class="preview-stage"><img id="right-image" alt="Right endpoint preview" loading="lazy" /></div>                  </figure>                </div>              </section>
               <section class="shell" aria-label="Preview &amp; controls">                <div class="preview-grid">                  <div class="preview-card">                    <div class="preview-header">                      <h3 style="margin:0;">Inline endpoint preview</h3>                      <button class="btn ghost" id="refresh-preview">Refresh</button>                    </div>                    <div class="control-top" style="margin-bottom:8px;">                      <span class="pill" id="active-endpoint">/eink-image?dither=regional</span>                    </div>                    <div class="preview-stage">                      <img id="endpoint-preview" src="/eink-image?dither=regional" alt="Endpoint preview" loading="lazy" />                    </div>                  </div>                  <div class="preview-card">                    <div class="preview-header">                      <h3 style="margin:0;">Live configuration</h3>                      <span class="pill">Auto-save</span>                    </div>                    <form id="settings-form" class="controls-grid" autocomplete="off">                      {controls_html}                    </form>                  </div>                </div>              </section>            </main>
@@ -460,15 +460,38 @@ def create_app() -> Flask:
               const leftSelect = document.getElementById('left-select');              const rightSelect = document.getElementById('right-select');              const leftImage = document.getElementById('left-image');              const rightImage = document.getElementById('right-image');              const leftLabel = document.getElementById('left-label');              const rightLabel = document.getElementById('right-label');
               const refreshComparison = () => {                const leftEndpoint = leftSelect.value;                const rightEndpoint = rightSelect.value;                leftLabel.textContent = leftEndpoint;                rightLabel.textContent = rightEndpoint;                leftImage.src = bust(leftEndpoint);                rightImage.src = bust(rightEndpoint);              };
               document.getElementById('refresh-btn').addEventListener('click', refreshComparison);              document.getElementById('swap-btn').addEventListener('click', () => {                const left = leftSelect.value;                leftSelect.value = rightSelect.value;                rightSelect.value = left;                refreshComparison();              });
-              refreshComparison();            </script>          </body>        </html>            """
-        ).format_map(
+                refreshComparison();            </script>          </body>        </html>            """
+        )
+
+        placeholders = [
+            "APP_VERSION",
+            "endpoint_cards",
+            "controls_html",
+            "comparison_options",
+            "SETTINGS.photo_mode",
+            "SETTINGS.sky_gradient_threshold",
+            "SETTINGS.smooth_strength",
+            "SETTINGS.cache_ttl",
+            "source_url",
+        ]
+
+        for name in placeholders:
+            template = template.replace(f"{{{name}}}", f"__PLACEHOLDER_{name}__")
+
+        template = template.replace("{", "{{").replace("}", "}}")
+
+        for name in placeholders:
+            template = template.replace(f"__PLACEHOLDER_{name}__", f"{{{name}}}")
+
+        return template.format_map(
             SafeDict(
                 APP_VERSION=APP_VERSION,
                 SETTINGS=SETTINGS,
                 endpoint_cards=endpoint_cards,
                 controls_html=controls_html,
                 comparison_options=comparison_options,
+                source_url=escape(SETTINGS.source_url),
             )
         )
-    
-    return app
+
+        return app
