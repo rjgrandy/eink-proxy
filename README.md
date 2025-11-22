@@ -68,7 +68,7 @@ Additional environment variables:
 | `SOURCE_TIMEOUT` | Seconds to wait for the source request. | `10.0` |
 | `SOURCE_RETRIES` | Number of retries when contacting the source. | `2` |
 
-See the top of `eink_proxy.py` for the full list of tunables.
+See `eink_proxy/config.py` for the full list of tunables.
 
 ## Endpoints
 
