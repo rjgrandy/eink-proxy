@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-ink Proxy Studio</title>
+    <style>
+        :root {
+            --bg-body: #0f172a;
+            --bg-panel: #1e293b;
+            --bg-input: #020617;
+            --border: #334155;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #10b981;
+            --error: #ef4444;
+            --font: 'Inter', system-ui, sans-serif;
+        }
+        body {
+            margin: 0;
+            font-family: var(--font);
+            background: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        * { box-sizing: border-box; }
+        
+        /* Header */
+        .header {
+            background: rgba(15, 23, 42, 0.95);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+        }
+        .brand { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+        .badge { font-size: 0.75rem; background: var(--border); padding: 2px 8px; border-radius: 99px; color: var(--text-muted); }
+        .nav-links { display: flex; gap: 1rem; }
+        .nav-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-weight: 600; font-size: 0.9rem; padding: 0.5rem; transition: color 0.2s; }
+        .nav-btn:hover, .nav-btn.active { color: var(--primary); }
+
+        /* Layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 2rem;
+            align-items: start;
+        }
+        
+        /* Sidebar (Settings) */
+        .settings-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .group-box {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .group-header {
+            padding: 0.75rem 1rem;
+            background: rgba(255,255,255,0.03);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+        }
+        .group-header:hover { background: rgba(255,255,255,0.05); }
+        .group-content { padding: 1rem; display: grid; gap: 1rem; }
+        
+        /* Inputs */
+        .field { display: flex; flex-direction: column; gap: 0.4rem; }
+        .field-label { font-size: 0.85rem; font-weight: 500; color: var(--text-muted); display: flex; justify-content: space-between; }
+        .input {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-family: inherit;
+            width: 100%;
+            transition: border-color 0.2s;
+        }
+        .input:focus { outline: none; border-color: var(--primary); }
+        .field-help { font-size: 0.75rem; color: #475569; line-height: 1.3; }
+        
+        .slider-group { display: grid; grid-template-columns: 1fr 60px; gap: 0.5rem; align-items: center; }
+        input[type=range] { width: 100%; accent-color: var(--primary); cursor: pointer; }
+        .slider-num { text-align: right; }
+
+        /* Preview Stage */
+        .stage-container {
+            position: sticky;
+            top: 5.5rem; /* Header height + buffer */
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .preview-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        .preview-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .pill { background: rgba(99, 102, 241, 0.15); color: #818cf8; padding: 4px 10px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; font-family: monospace; }
+        .btn-icon { background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+        .btn-icon:hover { border-color: var(--text-muted); }
+        
+        .img-wrap {
+            background: #111;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px dashed var(--border);
+            position: relative;
+        }
+        
+        .img-wrap.error { border-color: var(--error); background: rgba(239, 68, 68, 0.1); }
+        .img-wrap.error::after {
+            content: 'Connection Failed - Check Source URL';
+            color: var(--error);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .img-wrap img { width: 100%; height: auto; display: block; opacity: 0; transition: opacity 0.3s; }
+        .img-wrap img.loaded { opacity: 1; }
+
+        /* Endpoint Grid (Bottom or Modal) */
+        .endpoints-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 1rem;
+        }
+        .ep-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s, border-color 0.2s;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 0.75rem;
+            align-items: center;
+        }
+        .ep-card:hover { transform: translateY(-2px); border-color: var(--primary); }
+        .ep-icon { font-size: 1.5rem; }
+        .ep-name { font-weight: 600; font-size: 0.9rem; }
+        .ep-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+        .btn-preview {
+            background: var(--bg-input); border: 1px solid var(--border);
+            color: var(--text-muted); padding: 4px 8px; border-radius: 4px;
+            cursor: pointer; font-size: 0.7rem;
+        }
+        .btn-preview:hover { color: var(--primary); border-color: var(--primary); }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 2rem; right: 2rem;
+            background: var(--primary); color: white;
+            padding: 0.75rem 1.5rem; border-radius: 99px;
+            font-weight: 500; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+            transform: translateY(150%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 999;
+        }
+        .toast.show { transform: translateY(0); }
+        .toast.error { background: var(--error); }
+
+        @media (max-width: 900px) {
+            .main-layout { grid-template-columns: 1fr; }
+            .stage-container { position: static; order: -1; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="brand">
+            <span>E-ink Proxy</span>
+            <span class="badge">v${APP_VERSION}</span>
+        </div>
+        <nav class="nav-links">
+            <a href="#" class="nav-btn active" onclick="switchTab('studio')">Studio</a>
+            <a href="#" class="nav-btn" onclick="switchTab('endpoints')">Endpoints</a>
+        </nav>
+    </header>
+
+    <main id="tab-studio" class="main-layout">
+        <div class="settings-panel">
+            <div style="margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="margin:0; font-size:1rem;">Configuration</h3>
+                <div class="badge" style="background:rgba(16, 185, 129, 0.1); color:var(--accent);">Live Auto-save</div>
+            </div>
+            <form id="settings-form">
+                ${controls_html}
+            </form>
+        </div>
+
+        <div class="stage-container">
+            <div class="preview-card">
+                <div class="preview-toolbar">
+                    <div>
+                        <div style="font-weight:600; margin-bottom:4px;">Live Preview</div>
+                        <div class="pill" id="active-url">/eink-image?dither=regional</div>
+                    </div>
+                    <button class="btn-icon" id="refresh-btn">⟳ Refresh</button>
+                </div>
+                <div class="img-wrap" id="preview-wrap">
+                    <img id="preview-img" src="" alt="Preview" />
+                </div>
+            </div>
+            
+            <div class="preview-card">
+                    <div class="preview-toolbar">
+                    <div style="font-weight:600;">Comparison</div>
+                    <button class="btn-icon" id="compare-btn">Update</button>
+                </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
+                    <select id="left-sel" class="input">${comparison_options}</select>
+                    <select id="right-sel" class="input">${comparison_options}</select>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                    <div class="img-wrap" id="left-wrap" style="min-height:100px;">
+                        <img id="left-img" src="" loading="lazy">
+                    </div>
+                    <div class="img-wrap" id="right-wrap" style="min-height:100px;">
+                        <img id="right-img" src="" loading="lazy">
+                    </div>
+                    </div>
+            </div>
+        </div>
+    </main>
+
+    <main id="tab-endpoints" class="main-layout" style="display:none;">
+        <div style="max-width:1000px; margin:0 auto; padding:2rem;">
+            <h2 style="margin-top:0;">Available Endpoints</h2>
+            <div class="endpoints-grid">
+                ${endpoint_cards}
+            </div>
+        </div>
+    </main>
+
+    <div id="toast" class="toast">Settings Saved</div>
+
+    <script>
+        // State
+        const state = {
+            currentEndpoint: '/eink-image?dither=regional'
+        };
+
+        // DOM
+        const previewImg = document.getElementById('preview-img');
+        const previewWrap = document.getElementById('preview-wrap');
+        const urlLabel = document.getElementById('active-url');
+        const settingsForm = document.getElementById('settings-form');
+        const toast = document.getElementById('toast');
+
+        // Utils
+        const bust = (u) => `${u}${u.includes('?') ? '&' : '?'}ts=${Date.now()}`;
+        const showToast = (msg, isError=false) => {
+            toast.textContent = msg;
+            if(isError) toast.classList.add('error'); else toast.classList.remove('error');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        };
+
+        // Preview Logic
+        const updatePreview = () => {
+            urlLabel.textContent = state.currentEndpoint;
+            previewImg.classList.remove('loaded');
+            previewWrap.classList.remove('error');
+            
+            const newSrc = bust(state.currentEndpoint);
+            
+            // Robust Image Loading
+            const img = new Image();
+            img.onload = () => {
+                previewImg.src = newSrc;
+                previewImg.classList.add('loaded');
+            };
+            img.onerror = () => {
+                previewWrap.classList.add('error');
+                showToast("Image failed to load. Check Source URL.", true);
+                previewImg.src = newSrc;
+                previewImg.classList.add('loaded'); 
+            };
+            img.src = newSrc;
+        };
+
+        document.getElementById('refresh-btn').addEventListener('click', updatePreview);
+
+        // Settings Logic
+        const updateSetting = async (field, value) => {
+            try {
+                const res = await fetch('/settings', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [field]: value }),
+                });
+                if(res.ok) {
+                    showToast(`Saved ${field}`);
+                    updatePreview(); // Auto refresh on change
+                } else {
+                    showToast("Failed to save setting", true);
+                }
+            } catch(e) {
+                console.error(e);
+                showToast("Network Error", true);
+            }
+        };
+
+        // Event Delegation for Inputs
+        settingsForm.addEventListener('input', (e) => {
+            const target = e.target;
+            // Sync slider <-> number
+            if (target.dataset.sync) {
+                const sibling = settingsForm.querySelector(`[data-field="${target.dataset.sync}"].slider-num`);
+                if(sibling) sibling.value = target.value;
+            }
+            if (target.type === 'range') {
+                    const numberInput = target.parentElement.querySelector('.slider-num');
+                    if(numberInput) numberInput.value = target.value;
+            }
+        });
+
+        settingsForm.addEventListener('change', (e) => {
+                const target = e.target;
+                const field = target.dataset.field || target.dataset.sync;
+                if(!field) return;
+                
+                updateSetting(field, target.value);
+                
+                if(target.classList.contains('slider-num')) {
+                    const slider = target.parentElement.querySelector('.slider-range');
+                    if(slider) slider.value = target.value;
+                }
+        });
+
+        // Tab Switching
+        window.switchTab = (tab) => {
+            document.getElementById('tab-studio').style.display = tab === 'studio' ? 'grid' : 'none';
+            document.getElementById('tab-endpoints').style.display = tab === 'endpoints' ? 'block' : 'none';
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        };
+        
+        // Endpoint Buttons
+        document.querySelectorAll('.btn-preview').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                state.currentEndpoint = btn.dataset.endpoint;
+                switchTab('studio');
+                updatePreview();
+                document.querySelectorAll('.nav-btn')[0].classList.add('active'); 
+                document.querySelectorAll('.nav-btn')[1].classList.remove('active');
+            });
+        });
+
+        // Comparison
+        const leftSel = document.getElementById('left-sel');
+        const rightSel = document.getElementById('right-sel');
+        const leftImg = document.getElementById('left-img');
+        const rightImg = document.getElementById('right-img');
+        
+        const runCompare = () => {
+            // Basic error class clearing
+            document.getElementById('left-wrap').classList.remove('error');
+            document.getElementById('right-wrap').classList.remove('error');
+            
+            const lSrc = bust(leftSel.value);
+            const rSrc = bust(rightSel.value);
+            
+            leftImg.src = lSrc;
+            rightImg.src = rSrc;
+            
+            leftImg.onerror = () => document.getElementById('left-wrap').classList.add('error');
+            rightImg.onerror = () => document.getElementById('right-wrap').classList.add('error');
+            
+            leftImg.classList.add('loaded');
+            rightImg.classList.add('loaded');
+        };
+        document.getElementById('compare-btn').addEventListener('click', runCompare);
+        
+        // Init
+        updatePreview();
+        runCompare();
+
+    </script>
+</body>
+</html>
