@@ -496,5 +496,7 @@ def create_app() -> Flask:
         return app
 
 
-# Expose a module-level Flask application for Gunicorn import paths like ``eink_proxy.app:app``.
+# Expose a module-level Flask application for Gunicorn import paths like ``eink_proxy.app:app``
+# and provide a conventional ``application`` alias for WSGI servers that default to that name.
 app = create_app()
+application = app

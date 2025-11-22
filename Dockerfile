@@ -31,6 +31,6 @@ EXPOSE 5500
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${PORT}/health" || exit 1
 
-ENV APP_IMPORT_PATH=eink_proxy:app
+ENV APP_IMPORT_PATH=eink_proxy.app:create_app()
 
 CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --threads ${THREADS} ${APP_IMPORT_PATH}"]
