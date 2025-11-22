@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Tuple
 
 
-@dataclass(frozen=True)
+@dataclass()
 class ProxySettings:
     source_url: str
     port: int
