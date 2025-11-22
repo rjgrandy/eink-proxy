@@ -493,7 +493,7 @@ def create_app() -> Flask:
             )
         )
 
-        return app
+    return app  # THIS IS THE CRITICAL FIX - RETURN THE APP OBJECT
 
 
 # Expose a module-level Flask application for Gunicorn import paths like ``eink_proxy.app:app``
