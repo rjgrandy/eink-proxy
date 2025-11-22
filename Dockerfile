@@ -22,7 +22,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY eink_proxy.py /app/eink_proxy.py
 COPY eink_proxy /app/eink_proxy
 
 RUN pip install --no-cache-dir pillow flask requests gunicorn
