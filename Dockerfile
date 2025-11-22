@@ -34,4 +34,10 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 ENV APP_IMPORT_PATH=eink_proxy.app:app
 
+RUN python -c "import sys; print('Python path:', sys.path)" && \
+    python -c "import eink_proxy; print('Package location:', eink_proxy.__file__)" && \
+    python -c "from eink_proxy.app import app; print('App object:', app)" && \
+    ls -la /app/eink_proxy/
+
+
 CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --threads ${THREADS} \"${APP_IMPORT_PATH}\""]
