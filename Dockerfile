@@ -22,6 +22,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+COPY eink_proxy.py /app/eink_proxy.py
 COPY eink_proxy /app/eink_proxy
 
 RUN pip install --no-cache-dir pillow flask requests gunicorn
@@ -31,6 +32,7 @@ EXPOSE 5500
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${PORT}/health" || exit 1
 
-ENV APP_IMPORT_PATH=eink_proxy.app:create_app()
+# FIX: Set to 'eink_proxy:app' (variable name), not 'create_app()' (function call)
+ENV APP_IMPORT_PATH=eink_proxy:app
 
 CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --threads ${THREADS} ${APP_IMPORT_PATH}"]
