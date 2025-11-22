@@ -22,22 +22,28 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Ensure we only copy the package directory (eink_proxy.py is not needed/present)
+# Ensure we only copy the package directory
 COPY eink_proxy /app/eink_proxy
 
+# Verify the package structure exists
+RUN echo "=== Verifying package structure ===" && \
+    ls -la /app/ && \
+    echo "--- Contents of eink_proxy directory ---" && \
+    ls -la /app/eink_proxy/ && \
+    test -f /app/eink_proxy/__init__.py && echo "✓ __init__.py found" || (echo "✗ __init__.py missing!" && exit 1)
+
 RUN pip install --no-cache-dir pillow flask requests gunicorn
+
+# Test that Python can import the app during build
+RUN echo "=== Testing Python imports ===" && \
+    python -c "import sys; print('Python path:', sys.path)" && \
+    python -c "import eink_proxy; print('✓ Package imports')" && \
+    python -c "from eink_proxy.app import app; print('✓ App object found:', type(app))"
 
 EXPOSE 5500
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${PORT}/health" || exit 1
 
-ENV APP_IMPORT_PATH=eink_proxy.app:app
-
-RUN python -c "import sys; print('Python path:', sys.path)" && \
-    python -c "import eink_proxy; print('Package location:', eink_proxy.__file__)" && \
-    python -c "from eink_proxy.app import app; print('App object:', app)" && \
-    ls -la /app/eink_proxy/
-
-
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --threads ${THREADS} \"${APP_IMPORT_PATH}\""]
+# Simplified CMD - use direct path without shell variables
+CMD gunicorn --bind 0.0.0.0:5500 --workers 2 --threads 2 eink_proxy.app:app
