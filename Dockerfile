@@ -32,8 +32,6 @@ EXPOSE 5500
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${PORT}/health" || exit 1
 
-# FIX: Point strictly to the 'app' module and invoke the factory function
-ENV APP_IMPORT_PATH=eink_proxy.app:create_app()
+ENV APP_IMPORT_PATH=eink_proxy.app:app
 
-# FIX: Add quotes around ${APP_IMPORT_PATH} to prevent shell syntax errors with parentheses
 CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --threads ${THREADS} \"${APP_IMPORT_PATH}\""]
