@@ -22,7 +22,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# REMOVED: COPY eink_proxy.py /app/eink_proxy.py (Not needed with package import)
+# Ensure we only copy the package directory (eink_proxy.py is not needed/present)
 COPY eink_proxy /app/eink_proxy
 
 RUN pip install --no-cache-dir pillow flask requests gunicorn
@@ -32,6 +32,8 @@ EXPOSE 5500
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${PORT}/health" || exit 1
 
-ENV APP_IMPORT_PATH=eink_proxy:app
+# FIX: Point strictly to the 'app' module and invoke the factory function
+ENV APP_IMPORT_PATH=eink_proxy.app:create_app()
 
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --threads ${THREADS} ${APP_IMPORT_PATH}"]
+# FIX: Add quotes around ${APP_IMPORT_PATH} to prevent shell syntax errors with parentheses
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --threads ${THREADS} \"${APP_IMPORT_PATH}\""]
