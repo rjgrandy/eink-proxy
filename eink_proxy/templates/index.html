@@ -153,7 +153,6 @@
             background: #111;
             border-radius: 8px;
             overflow: hidden;
-            /* Increased from 200px to 400px for better visibility */
             min-height: 400px;
             display: flex;
             align-items: center;
@@ -161,6 +160,9 @@
             border: 1px dashed var(--border);
             position: relative;
         }
+        
+        .img-wrap.clickable { cursor: pointer; }
+        .img-wrap.clickable:hover { border-color: var(--primary); }
         
         .img-wrap.error { border-color: var(--error); background: rgba(239, 68, 68, 0.1); }
         .img-wrap.error::after {
@@ -172,6 +174,28 @@
         
         .img-wrap img { width: 100%; height: auto; display: block; opacity: 0; transition: opacity 0.3s; }
         .img-wrap img.loaded { opacity: 1; }
+        
+        /* Loading Spinner */
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin-top: -20px;
+            margin-left: -20px;
+            display: none;
+            z-index: 10;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Loading State */
+        .img-wrap.loading .loader { display: block; }
+        .img-wrap.loading img { opacity: 0.3; filter: blur(2px); }
 
         /* Endpoint Grid (Bottom or Modal) */
         .endpoints-grid {
@@ -234,6 +258,7 @@
     </header>
 
     <main id="tab-studio" class="main-layout">
+        <!-- Settings Column -->
         <div class="settings-panel">
             <div style="margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;">
                 <h3 style="margin:0; font-size:1rem;">Configuration</h3>
@@ -245,6 +270,7 @@
             </form>
         </div>
 
+        <!-- Preview Column -->
         <div class="stage-container">
             <div class="preview-card">
                 <div class="preview-toolbar">
@@ -255,6 +281,7 @@
                     <button class="btn-icon" id="refresh-btn">⟳ Refresh</button>
                 </div>
                 <div class="img-wrap" id="preview-wrap">
+                    <div class="loader"></div>
                     <img id="preview-img" src="" alt="Preview" />
                 </div>
             </div>
@@ -269,10 +296,12 @@
                     <select id="right-sel" class="input">${comparison_options}</select>
                     </div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
-                    <div class="img-wrap" id="left-wrap" style="min-height:300px;">
+                    <div class="img-wrap clickable" id="left-wrap" style="min-height:300px;" title="Click to open in new tab">
+                        <div class="loader"></div>
                         <img id="left-img" src="" loading="lazy">
                     </div>
-                    <div class="img-wrap" id="right-wrap" style="min-height:300px;">
+                    <div class="img-wrap clickable" id="right-wrap" style="min-height:300px;" title="Click to open in new tab">
+                        <div class="loader"></div>
                         <img id="right-img" src="" loading="lazy">
                     </div>
                     </div>
@@ -303,6 +332,14 @@
         const urlLabel = document.getElementById('active-url');
         const settingsForm = document.getElementById('settings-form');
         const toast = document.getElementById('toast');
+        
+        // Comparison DOM
+        const leftWrap = document.getElementById('left-wrap');
+        const rightWrap = document.getElementById('right-wrap');
+        const leftImg = document.getElementById('left-img');
+        const rightImg = document.getElementById('right-img');
+        const leftSel = document.getElementById('left-sel');
+        const rightSel = document.getElementById('right-sel');
 
         // Utils
         const bust = (u) => `$${u}$${u.includes('?') ? '&' : '?'}ts=$${Date.now()}`;
@@ -313,32 +350,39 @@
             setTimeout(() => toast.classList.remove('show'), 3000);
         };
 
+        // Image Helper
+        const loadImage = (imgEl, wrapEl, url) => {
+            wrapEl.classList.remove('error');
+            wrapEl.classList.add('loading');
+            imgEl.classList.remove('loaded');
+            
+            const cacheBustedUrl = bust(url);
+            
+            // Preload object to detect success/fail without visible flicker
+            const tmp = new Image();
+            tmp.onload = () => {
+                imgEl.src = cacheBustedUrl;
+                imgEl.classList.add('loaded');
+                wrapEl.classList.remove('loading');
+            };
+            tmp.onerror = () => {
+                // Still show the broken image so user sees something is wrong
+                imgEl.src = cacheBustedUrl; 
+                wrapEl.classList.remove('loading');
+                wrapEl.classList.add('error');
+            };
+            tmp.src = cacheBustedUrl;
+        };
+
         // Preview Logic
         const updatePreview = () => {
             urlLabel.textContent = state.currentEndpoint;
-            previewImg.classList.remove('loaded');
-            previewWrap.classList.remove('error');
-            
-            const newSrc = bust(state.currentEndpoint);
-            
-            // Robust Image Loading
-            const img = new Image();
-            img.onload = () => {
-                previewImg.src = newSrc;
-                previewImg.classList.add('loaded');
-            };
-            img.onerror = () => {
-                previewWrap.classList.add('error');
-                showToast("Image failed to load. Check Source URL.", true);
-                previewImg.src = newSrc;
-                previewImg.classList.add('loaded'); 
-            };
-            img.src = newSrc;
+            loadImage(previewImg, previewWrap, state.currentEndpoint);
         };
 
         document.getElementById('refresh-btn').addEventListener('click', updatePreview);
 
-        // Settings Logic - Now triggered by Button
+        // Settings Logic
         document.getElementById('apply-btn').addEventListener('click', async (e) => {
             e.preventDefault();
             const formData = new FormData(settingsForm);
@@ -362,10 +406,9 @@
             }
         });
 
-        // Event Delegation for Inputs (Local UI Sync only)
+        // Event Delegation for Inputs (Sync sliders)
         settingsForm.addEventListener('input', (e) => {
             const target = e.target;
-            // Sync slider <-> number
             if (target.dataset.sync) {
                 const sibling = settingsForm.querySelector(`[data-field="$${target.dataset.sync}"].slider-num`);
                 if(sibling) sibling.value = target.value;
@@ -375,8 +418,6 @@
                     if(numberInput) numberInput.value = target.value;
             }
         });
-        
-        // Note: We removed the 'change' listener that triggered auto-saves.
 
         // Tab Switching
         window.switchTab = (tab) => {
@@ -399,30 +440,24 @@
             });
         });
 
-        // Comparison
-        const leftSel = document.getElementById('left-sel');
-        const rightSel = document.getElementById('right-sel');
-        const leftImg = document.getElementById('left-img');
-        const rightImg = document.getElementById('right-img');
-        
+        // Comparison Logic
         const runCompare = () => {
-            // Basic error class clearing
-            document.getElementById('left-wrap').classList.remove('error');
-            document.getElementById('right-wrap').classList.remove('error');
-            
-            const lSrc = bust(leftSel.value);
-            const rSrc = bust(rightSel.value);
-            
-            leftImg.src = lSrc;
-            rightImg.src = rSrc;
-            
-            leftImg.onerror = () => document.getElementById('left-wrap').classList.add('error');
-            rightImg.onerror = () => document.getElementById('right-wrap').classList.add('error');
-            
-            leftImg.classList.add('loaded');
-            rightImg.classList.add('loaded');
+            loadImage(leftImg, leftWrap, leftSel.value);
+            loadImage(rightImg, rightWrap, rightSel.value);
         };
         document.getElementById('compare-btn').addEventListener('click', runCompare);
+        
+        // Click to Open Logic
+        const openTab = (endpoint) => {
+            if(!endpoint) return;
+            // Use bust() to ensure they see the fresh version, or raw? 
+            // Raw is better for url sharing, bust is better for seeing changes.
+            // Let's use bust() to match the visual.
+            window.open(bust(endpoint), '_blank');
+        };
+        
+        leftWrap.addEventListener('click', () => openTab(leftSel.value));
+        rightWrap.addEventListener('click', () => openTab(rightSel.value));
         
         // Init
         updatePreview();
