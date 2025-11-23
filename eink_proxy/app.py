@@ -8,7 +8,8 @@ from html import escape
 
 from flask import Flask, jsonify, request, send_file
 
-from .config import SETTINGS, configure_logging
+# Import ProxySettings class so we can regenerate defaults from env vars
+from .config import SETTINGS, ProxySettings, configure_logging
 from .infrastructure.cache import last_good_png
 from .infrastructure.network import FETCHER
 from .infrastructure.responses import send_png
@@ -20,7 +21,7 @@ from .processing.pipeline import (
     quantize_palette_none,
 )
 
-APP_VERSION = "3.2.0-compare"
+APP_VERSION = "3.2.1-env-defaults"
 
 
 def create_app() -> Flask:
@@ -144,7 +145,10 @@ def create_app() -> Flask:
             ),
         ]
 
-        # Define controls with range limits and DEFAULT values for reset
+        # Load fresh defaults from environment variables (Docker config)
+        # This ensures the Reset buttons revert to the container's initial state
+        defaults = ProxySettings.from_env()
+
         control_fields = [
             # Group: Network & Source
             {
@@ -153,7 +157,7 @@ def create_app() -> Flask:
                 "label": "Source URL",
                 "type": "url",
                 "value": SETTINGS.source_url,
-                "default": "http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480",
+                "default": defaults.source_url,
                 "help": "Upstream feed URL.",
             },
             {
@@ -163,7 +167,7 @@ def create_app() -> Flask:
                 "type": "number",
                 "step": "0.1",
                 "value": SETTINGS.timeout,
-                "default": "10.0",
+                "default": defaults.timeout,
                 "help": "Max wait time for source.",
             },
             # Group: Image Enhancement
@@ -176,7 +180,7 @@ def create_app() -> Flask:
                 "max": "2.0",
                 "step": "0.05",
                 "value": SETTINGS.contrast,
-                "default": "1.25",
+                "default": defaults.contrast,
                 "help": "Global contrast boost.",
             },
             {
@@ -188,7 +192,7 @@ def create_app() -> Flask:
                 "max": "3.0",
                 "step": "0.05",
                 "value": SETTINGS.saturation,
-                "default": "1.2",
+                "default": defaults.saturation,
                 "help": "Color intensity multiplier.",
             },
             {
@@ -200,7 +204,7 @@ def create_app() -> Flask:
                 "max": "2.5",
                 "step": "0.01",
                 "value": SETTINGS.gamma,
-                "default": "0.95",
+                "default": defaults.gamma,
                 "help": "Non-linear brightness adj.",
             },
             {
@@ -212,7 +216,7 @@ def create_app() -> Flask:
                 "max": "4.0",
                 "step": "0.1",
                 "value": SETTINGS.sharpness_ui,
-                "default": "2.0",
+                "default": defaults.sharpness_ui,
                 "help": "Edge enhancement strength.",
             },
             # Group: Dither & Photo
@@ -222,7 +226,7 @@ def create_app() -> Flask:
                 "label": "Algorithm",
                 "type": "select",
                 "value": SETTINGS.photo_mode,
-                "default": "hybrid",
+                "default": defaults.photo_mode,
                 "options": [
                     ("hybrid", "Hybrid Regional"),
                     ("fs", "Floyd–Steinberg"),
@@ -240,7 +244,7 @@ def create_app() -> Flask:
                 "max": "60",
                 "step": "1",
                 "value": SETTINGS.sky_gradient_threshold,
-                "default": "14",
+                "default": defaults.sky_gradient_threshold,
                 "help": "Skip dither on smooth gradients.",
             },
             {
@@ -252,7 +256,7 @@ def create_app() -> Flask:
                 "max": "5",
                 "step": "1",
                 "value": SETTINGS.smooth_strength,
-                "default": "1",
+                "default": defaults.smooth_strength,
                 "help": "Blur strength for skies.",
             },
             # Group: Masking
@@ -265,7 +269,7 @@ def create_app() -> Flask:
                 "max": "100",
                 "step": "1",
                 "value": SETTINGS.edge_threshold,
-                "default": "26",
+                "default": defaults.edge_threshold,
                 "help": "Sensitivity for UI edges.",
             },
             {
@@ -277,7 +281,7 @@ def create_app() -> Flask:
                 "max": "10",
                 "step": "1",
                 "value": SETTINGS.mask_blur,
-                "default": "2",
+                "default": defaults.mask_blur,
                 "help": "Softness of transition masks.",
             },
             {
@@ -287,7 +291,7 @@ def create_app() -> Flask:
                 "type": "number",
                 "step": "1",
                 "value": SETTINGS.mid_l_min,
-                "default": "70",
+                "default": defaults.mid_l_min,
                 "help": "Luma start for midtone mask.",
             },
             {
@@ -297,7 +301,7 @@ def create_app() -> Flask:
                 "type": "number",
                 "step": "1",
                 "value": SETTINGS.mid_l_max,
-                "default": "200",
+                "default": defaults.mid_l_max,
                 "help": "Luma end for midtone mask.",
             },
             # Group: Advanced
@@ -308,7 +312,7 @@ def create_app() -> Flask:
                 "type": "number",
                 "step": "10",
                 "value": SETTINGS.ui_palette_threshold,
-                "default": "1800",
+                "default": defaults.ui_palette_threshold,
                 "help": "Color snap aggressiveness.",
             },
             {
@@ -318,7 +322,7 @@ def create_app() -> Flask:
                 "type": "number",
                 "step": "0.5",
                 "value": SETTINGS.cache_ttl,
-                "default": "5",
+                "default": defaults.cache_ttl,
                 "help": "Output caching duration.",
             },
             {
@@ -327,7 +331,7 @@ def create_app() -> Flask:
                 "label": "Port",
                 "type": "number",
                 "value": SETTINGS.port,
-                "default": "5500",
+                "default": defaults.port,
                 "help": "Internal container port.",
             },
              {
@@ -336,7 +340,7 @@ def create_app() -> Flask:
                 "label": "Log Level",
                 "type": "select",
                 "value": SETTINGS.log_level,
-                "default": "INFO",
+                "default": defaults.log_level,
                 "options": [
                     ("DEBUG", "Debug"),
                     ("INFO", "Info"),
