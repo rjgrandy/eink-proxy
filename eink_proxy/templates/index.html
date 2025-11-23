@@ -105,6 +105,23 @@
         input[type=range] { width: 100%; accent-color: var(--primary); cursor: pointer; }
         .slider-num { text-align: right; }
 
+        /* Buttons */
+        .btn-primary {
+            background: var(--primary);
+            border: 1px solid var(--primary);
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 1rem;
+            transition: background 0.2s;
+            font-size: 1rem;
+        }
+        .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+        .btn-primary:active { transform: translateY(1px); }
+
         /* Preview Stage */
         .stage-container {
             position: sticky;
@@ -136,7 +153,8 @@
             background: #111;
             border-radius: 8px;
             overflow: hidden;
-            min-height: 200px;
+            /* Increased from 200px to 400px for better visibility */
+            min-height: 400px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -219,10 +237,11 @@
         <div class="settings-panel">
             <div style="margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;">
                 <h3 style="margin:0; font-size:1rem;">Configuration</h3>
-                <div class="badge" style="background:rgba(16, 185, 129, 0.1); color:var(--accent);">Live Auto-save</div>
+                <div class="badge" style="background:rgba(255, 255, 255, 0.1); color:var(--text-muted);">Manual Save</div>
             </div>
             <form id="settings-form">
                 ${controls_html}
+                <button type="button" id="apply-btn" class="btn-primary">Apply Changes</button>
             </form>
         </div>
 
@@ -250,10 +269,10 @@
                     <select id="right-sel" class="input">${comparison_options}</select>
                     </div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
-                    <div class="img-wrap" id="left-wrap" style="min-height:100px;">
+                    <div class="img-wrap" id="left-wrap" style="min-height:300px;">
                         <img id="left-img" src="" loading="lazy">
                     </div>
-                    <div class="img-wrap" id="right-wrap" style="min-height:100px;">
+                    <div class="img-wrap" id="right-wrap" style="min-height:300px;">
                         <img id="right-img" src="" loading="lazy">
                     </div>
                     </div>
@@ -286,7 +305,6 @@
         const toast = document.getElementById('toast');
 
         // Utils
-        // FIX: Doubled $$ signs so Python string.Template ignores them
         const bust = (u) => `$${u}$${u.includes('?') ? '&' : '?'}ts=$${Date.now()}`;
         const showToast = (msg, isError=false) => {
             toast.textContent = msg;
@@ -320,33 +338,35 @@
 
         document.getElementById('refresh-btn').addEventListener('click', updatePreview);
 
-        // Settings Logic
-        const updateSetting = async (field, value) => {
+        // Settings Logic - Now triggered by Button
+        document.getElementById('apply-btn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(settingsForm);
+            const payload = Object.fromEntries(formData.entries());
+
             try {
                 const res = await fetch('/settings', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ [field]: value }),
+                    body: JSON.stringify(payload),
                 });
                 if(res.ok) {
-                    // FIX: Doubled $$ signs
-                    showToast(`Saved $${field}`);
-                    updatePreview(); // Auto refresh on change
+                    showToast("Settings Applied");
+                    updatePreview();
                 } else {
-                    showToast("Failed to save setting", true);
+                    showToast("Failed to save settings", true);
                 }
             } catch(e) {
                 console.error(e);
                 showToast("Network Error", true);
             }
-        };
+        });
 
-        // Event Delegation for Inputs
+        // Event Delegation for Inputs (Local UI Sync only)
         settingsForm.addEventListener('input', (e) => {
             const target = e.target;
             // Sync slider <-> number
             if (target.dataset.sync) {
-                // FIX: Doubled $$ signs
                 const sibling = settingsForm.querySelector(`[data-field="$${target.dataset.sync}"].slider-num`);
                 if(sibling) sibling.value = target.value;
             }
@@ -355,19 +375,8 @@
                     if(numberInput) numberInput.value = target.value;
             }
         });
-
-        settingsForm.addEventListener('change', (e) => {
-                const target = e.target;
-                const field = target.dataset.field || target.dataset.sync;
-                if(!field) return;
-                
-                updateSetting(field, target.value);
-                
-                if(target.classList.contains('slider-num')) {
-                    const slider = target.parentElement.querySelector('.slider-range');
-                    if(slider) slider.value = target.value;
-                }
-        });
+        
+        // Note: We removed the 'change' listener that triggered auto-saves.
 
         // Tab Switching
         window.switchTab = (tab) => {
