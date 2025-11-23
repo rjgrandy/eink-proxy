@@ -20,7 +20,7 @@ from .processing.pipeline import (
     quantize_palette_none,
 )
 
-APP_VERSION = "3.1.3-template"
+APP_VERSION = "3.2.0-compare"
 
 
 def create_app() -> Flask:
@@ -144,7 +144,7 @@ def create_app() -> Flask:
             ),
         ]
 
-        # Define controls with range limits for slider generation
+        # Define controls with range limits and DEFAULT values for reset
         control_fields = [
             # Group: Network & Source
             {
@@ -153,7 +153,8 @@ def create_app() -> Flask:
                 "label": "Source URL",
                 "type": "url",
                 "value": SETTINGS.source_url,
-                "help": "Upstream feed URL (Must be reachable from container).",
+                "default": "http://192.168.1.199:10000/lovelace-main/einkpanelcolor?viewport=800x480",
+                "help": "Upstream feed URL.",
             },
             {
                 "group": "Network & Source",
@@ -162,6 +163,7 @@ def create_app() -> Flask:
                 "type": "number",
                 "step": "0.1",
                 "value": SETTINGS.timeout,
+                "default": "10.0",
                 "help": "Max wait time for source.",
             },
             # Group: Image Enhancement
@@ -174,6 +176,7 @@ def create_app() -> Flask:
                 "max": "2.0",
                 "step": "0.05",
                 "value": SETTINGS.contrast,
+                "default": "1.25",
                 "help": "Global contrast boost.",
             },
             {
@@ -185,6 +188,7 @@ def create_app() -> Flask:
                 "max": "3.0",
                 "step": "0.05",
                 "value": SETTINGS.saturation,
+                "default": "1.2",
                 "help": "Color intensity multiplier.",
             },
             {
@@ -196,6 +200,7 @@ def create_app() -> Flask:
                 "max": "2.5",
                 "step": "0.01",
                 "value": SETTINGS.gamma,
+                "default": "0.95",
                 "help": "Non-linear brightness adj.",
             },
             {
@@ -207,6 +212,7 @@ def create_app() -> Flask:
                 "max": "4.0",
                 "step": "0.1",
                 "value": SETTINGS.sharpness_ui,
+                "default": "2.0",
                 "help": "Edge enhancement strength.",
             },
             # Group: Dither & Photo
@@ -216,6 +222,7 @@ def create_app() -> Flask:
                 "label": "Algorithm",
                 "type": "select",
                 "value": SETTINGS.photo_mode,
+                "default": "hybrid",
                 "options": [
                     ("hybrid", "Hybrid Regional"),
                     ("fs", "Floyd–Steinberg"),
@@ -233,6 +240,7 @@ def create_app() -> Flask:
                 "max": "60",
                 "step": "1",
                 "value": SETTINGS.sky_gradient_threshold,
+                "default": "14",
                 "help": "Skip dither on smooth gradients.",
             },
             {
@@ -244,6 +252,7 @@ def create_app() -> Flask:
                 "max": "5",
                 "step": "1",
                 "value": SETTINGS.smooth_strength,
+                "default": "1",
                 "help": "Blur strength for skies.",
             },
             # Group: Masking
@@ -256,6 +265,7 @@ def create_app() -> Flask:
                 "max": "100",
                 "step": "1",
                 "value": SETTINGS.edge_threshold,
+                "default": "26",
                 "help": "Sensitivity for UI edges.",
             },
             {
@@ -267,6 +277,7 @@ def create_app() -> Flask:
                 "max": "10",
                 "step": "1",
                 "value": SETTINGS.mask_blur,
+                "default": "2",
                 "help": "Softness of transition masks.",
             },
             {
@@ -276,6 +287,7 @@ def create_app() -> Flask:
                 "type": "number",
                 "step": "1",
                 "value": SETTINGS.mid_l_min,
+                "default": "70",
                 "help": "Luma start for midtone mask.",
             },
             {
@@ -285,6 +297,7 @@ def create_app() -> Flask:
                 "type": "number",
                 "step": "1",
                 "value": SETTINGS.mid_l_max,
+                "default": "200",
                 "help": "Luma end for midtone mask.",
             },
             # Group: Advanced
@@ -295,6 +308,7 @@ def create_app() -> Flask:
                 "type": "number",
                 "step": "10",
                 "value": SETTINGS.ui_palette_threshold,
+                "default": "1800",
                 "help": "Color snap aggressiveness.",
             },
             {
@@ -304,6 +318,7 @@ def create_app() -> Flask:
                 "type": "number",
                 "step": "0.5",
                 "value": SETTINGS.cache_ttl,
+                "default": "5",
                 "help": "Output caching duration.",
             },
             {
@@ -312,6 +327,7 @@ def create_app() -> Flask:
                 "label": "Port",
                 "type": "number",
                 "value": SETTINGS.port,
+                "default": "5500",
                 "help": "Internal container port.",
             },
              {
@@ -320,6 +336,7 @@ def create_app() -> Flask:
                 "label": "Log Level",
                 "type": "select",
                 "value": SETTINGS.log_level,
+                "default": "INFO",
                 "options": [
                     ("DEBUG", "Debug"),
                     ("INFO", "Info"),
@@ -343,6 +360,7 @@ def create_app() -> Flask:
             label = escape(str(field.get("label", field["name"])))
             name = escape(str(field["name"]))
             val = escape(str(field.get("value", "")))
+            default_val = escape(str(field.get("default", "")))
             ftype = field.get("type", "text")
             help_text = escape(str(field.get("help", "")))
             
@@ -374,9 +392,19 @@ def create_app() -> Flask:
                 step_attr = f'step="{field["step"]}"' if "step" in field else ""
                 input_html = f'<input type="{ftype}" name="{name}" data-field="{name}" value="{val}" {step_attr} class="input">'
 
+            reset_btn = (
+                f'<button type="button" class="reset-btn" data-field="{name}" data-default="{default_val}" '
+                f'title="Reset to {default_val}">'
+                f'↺'
+                f'</button>'
+            )
+
             return (
                 f'<div class="field">'
-                f'<label class="field-label"><span>{label}</span></label>'
+                f'<div class="field-header">'
+                f'<label class="field-label">{label}</label>'
+                f'{reset_btn}'
+                f'</div>'
                 f'{input_html}'
                 f'<div class="field-help">{help_text}</div>'
                 f'</div>'
